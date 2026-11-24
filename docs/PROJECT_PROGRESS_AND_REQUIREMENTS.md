@@ -114,3 +114,4 @@ Bảng dưới đây liệt kê toàn bộ các **Yêu cầu Chức năng (`FR`)
    - Giao diện React + Tailwind CSS phải hiển thị tốt trên cả màn hình rộng của **Laptop (`1920x1080`)** lẫn màn hình dọc của **Điện thoại di động (`375x812`)** để điều khiển cầm tay từ xa.
 4. **Tính Dễ Cài Đặt & Làm Việc Nhóm (`Zero-Config Portability`):**
    - Bất kỳ thành viên nào trong nhóm `git clone` dự án về máy chỉ cần chạy `dotnet run` và `npm install && npm run dev` là hệ thống tự động tạo kho dữ liệu cục bộ (`App_Data/smarthome_store.json`) và chạy ngay mà không cần cấu hình SQL Server phức tạp.
+
