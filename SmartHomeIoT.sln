@@ -21,7 +21,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "1-Firmware-ESP32", "1-Firmw
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SmartHome.Api", "2-backend-csharp\SmartHome.Api\SmartHome.Api.csproj", "{8F9E6B12-4D3A-4C21-9A56-1E7B8C9D0E1F}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "3-Frontend-React", "3-Frontend-React", "{A3333333-3333-3333-3333-333333333333}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "3-Frontend-React-Web", "3-Frontend-React-Web", "{A3333333-3333-3333-3333-333333333333}"
 	ProjectSection(SolutionItems) = preProject
 		3-frontend-react\package.json = 3-frontend-react\package.json
 		3-frontend-react\vite.config.js = 3-frontend-react\vite.config.js
@@ -36,6 +36,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A4444444-444
 		3-frontend-react\src\main.jsx = 3-frontend-react\src\main.jsx
 		3-frontend-react\src\index.css = 3-frontend-react\src\index.css
 		3-frontend-react\src\services\apiClient.js = 3-frontend-react\src\services\apiClient.js
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "4-Mobile-React-Native", "4-Mobile-React-Native", "{A5555555-5555-5555-5555-555555555555}"
+	ProjectSection(SolutionItems) = preProject
+		4-mobile-react-native\README.md = 4-mobile-react-native\README.md
+		4-mobile-react-native\package.json = 4-mobile-react-native\package.json
+		4-mobile-react-native\app.json = 4-mobile-react-native\app.json
+		4-mobile-react-native\App.js = 4-mobile-react-native\App.js
+		4-mobile-react-native\src\services\mobileApi.js = 4-mobile-react-native\src\services\mobileApi.js
 	EndProjectSection
 EndProject
 Global

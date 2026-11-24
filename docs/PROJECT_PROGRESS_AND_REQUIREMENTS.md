@@ -1,6 +1,6 @@
 # 📊 BÁO CÁO TIẾN ĐỘ CÔNG VIỆC & ĐẶC TẢ YÊU CẦU CHỨC NĂNG SẢN PHẨM
 **Dự án:** Hệ thống Ngôi nhà & Khu vườn Thông minh (Smart Home & Smart Garden IoT)  
-**Nền tảng công nghệ:** Vietduino ESP32 (C/C++) • MQTT (EMQX / MQTTX) • C# ASP.NET Core (3-Layer + SignalR) • React + Vite + Tailwind CSS
+**Nền tảng công nghệ:** Vietduino ESP32 (C/C++) • MQTT (EMQX / MQTTX) • C# ASP.NET Core (3-Layer + SignalR) • Web React + Tailwind CSS (`3-frontend-react`) • Mobile App React Native Expo (`4-mobile-react-native`)
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Giai đoạn | Hạng mục chính | Phụ trách | Trạng thái | Tiến độ | Ghi chú hiện trạng |
 | :-: | :--- | :---: | :---: | :-: | :--- |
-| **Giai đoạn 1** | **Phần cứng (13 thiết bị) & Firmware Offline tại mạch** | Mảng Nhúng (ESP32) | ✅ **Hoàn thành** | **100%** | Đã lắp mạch chuẩn trên Breadboard 830 lỗ, xử lý xong 100% nhiễu EMI máy bơm, rung Servo, lọc nhiễu mưa & nút bấm 2 chế độ. |
-| **Giai đoạn 2** | **Khởi tạo Git Monorepo & Backend C# (Kiến trúc 3 Lớp)** | Mảng Backend (C#) | 🟢 **Đã dựng khung & Chạy tốt** | **85%** | Đã dựng xong `Controllers`, `SignalR Hub`, `MqttWorkerService`, `Repository`. Cần nhóm test mở rộng & tinh chỉnh trong tuần này. |
-| **Giai đoạn 3** | **Giao diện Web / Mobile Điều khiển từ xa &Kết nối Wi-Fi** | Mảng Frontend (React) + Nhúng | 🟡 **Đang triển khai (Mục tiêu Tuần này)** | **80%** | Đã có giao diện điều khiển & code ESP32 Wi-Fi MQTT. Trong tuần này cần nạp Wi-Fi thực tế, test qua `MQTTX` và đồng bộ 2 chiều. |
-| **Giai đoạn 4** | **Dashboard Thống kê, Biểu đồ Lịch sử & Xuất Báo cáo Excel** | Mảng Frontend + Backend | ⏳ **Kế hoạch Tuần tiếp theo** | **70%** | Đã có khung KPI, biểu đồ cột và xuất file `.CSV`. Sẽ nâng cấp thêm bộ lọc theo thời gian & biểu đồ chuyên sâu sau khi xong GĐ 3. |
-| **Giai đoạn 5** | **Kiểm thử Tích hợp Toàn diện & Chuẩn bị Bảo vệ Đồ án** | Cả nhóm | 📅 **Sắp tới** | **0%** | Chạy thử 5 kịch bản demo thực tế, quay video dự phòng, hoàn thiện slide & báo cáo Word. |
+| **Giai đoạn 1** | **Phần cứng (13 thiết bị) & Firmware Offline tại mạch** | Thành viên 2 (ESP32) | ✅ **Hoàn thành** | **100%** | Đã lắp mạch chuẩn trên Breadboard 830 lỗ, xử lý xong 100% nhiễu EMI máy bơm, rung Servo, lọc nhiễu mưa & nút bấm 2 chế độ. |
+| **Giai đoạn 2** | **Khởi tạo Git Monorepo & Backend C# (Kiến trúc 3 Lớp)** | Nhóm trưởng (Backend C#) | 🟢 **Đã dựng khung & Chạy tốt** | **90%** | Đã dựng xong `Controllers`, `SignalR Hub`, `MqttWorkerService`, `Repository`, mở cổng LAN `0.0.0.0:5000` cho cả Web và Mobile. |
+| **Giai đoạn 3** | **Kết nối Wi-Fi/MQTT, Web Điều khiển & App Mobile React Native** | TV2 (ESP32) + TV3 (Web) + TV4 (Mobile RN) | 🟡 **Đang triển khai (Mục tiêu Tuần này)** | **85%** | Đã có Web (`3-frontend-react`), App Mobile (`4-mobile-react-native`) & code ESP32 Wi-Fi MQTT. Tuần này cả nhóm test qua `MQTTX` & đồng bộ 2 chiều. |
+| **Giai đoạn 4** | **Dashboard Thống kê, Biểu đồ Lịch sử & Xuất Báo cáo Excel** | Nhóm trưởng (C#) + TV3 (Web React) | ⏳ **Kế hoạch Tuần tiếp theo** | **70%** | Đã có khung KPI, biểu đồ cột và xuất file `.CSV`. Sẽ nâng cấp thêm bộ lọc & biểu đồ chuyên sâu sau khi xong GĐ 3. |
+| **Giai đoạn 5** | **Kiểm thử Tích hợp Toàn diện & Chuẩn bị Bảo vệ Đồ án** | Cả nhóm (4 thành viên) | 📅 **Sắp tới** | **0%** | Chạy thử 5 kịch bản demo thực tế trên Mạch + Web + App Mobile, quay video dự phòng, hoàn thiện slide & báo cáo Word. |
 
 ---
 

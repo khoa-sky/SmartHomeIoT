@@ -1,9 +1,10 @@
 # 📡 HỢP ĐỒNG GIAO TIẾP DỮ LIỆU: MQTT, SIGNALR & REST API (`MQTT_API_CONTRACT.md`)
 
-Tài liệu này quy định chuẩn gói tin `JSON` thống nhất giữa **3 mảng**:
-1. **Firmware ESP32 (`1-firmware-esp32`)** & công cụ test **`MQTTX`**
-2. **Backend C# ASP.NET Core (`2-backend-csharp`)**
-3. **Frontend React + Tailwind CSS (`3-frontend-react`)**
+Tài liệu này quy định chuẩn gói tin `JSON` thống nhất giữa **4 mảng**:
+1. **Firmware ESP32 (`1-firmware-esp32`)** & công cụ test **`MQTTX`** *(Thành viên 2)*
+2. **Backend C# ASP.NET Core (`2-backend-csharp`)** *(Nhóm trưởng)*
+3. **Giao diện Web React + Tailwind CSS (`3-frontend-react`)** *(Thành viên 3)*
+4. **Ứng dụng Di động React Native Expo (`4-mobile-react-native`)** *(Thành viên 4)*
 
 ---
 

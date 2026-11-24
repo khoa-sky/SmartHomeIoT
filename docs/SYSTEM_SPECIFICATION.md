@@ -252,10 +252,11 @@ Khi chuyển sang Tab **`[📊 Dashboard Thống Kê & Nhật Ký]`**, người 
 
 ---
 
-## 5. BẢNG PHÂN CHIA CÔNG VIỆC TRONG NHÓM (DỰA TRÊN TÀI LIỆU NÀY)
+## 5. BẢNG PHÂN CHIA CÔNG VIỆC TRONG NHÓM (4 THÀNH VIÊN — 4 THƯ MỤC)
 
-| Mảng công việc | Thư mục trong Git | Nhiệm vụ cụ thể trong Tuần này |
-| :--- | :---: | :--- |
-| **1. Mảng Nhúng & IoT**<br>*(ESP32 Firmware)* | `1-firmware-esp32/` | - Giữ nguyên logic phần cứng ổn định của 13 thiết bị.<br>- Tích hợp Wi-Fi + MQTT Client (`PubSubClient`).<br>- Gửi JSON `smarthome/telemetry` mỗi 1 giây và nhận xử lý 5 lệnh JSON tại `smarthome/command`. |
-| **2. Mảng Backend & DB**<br>*(C# ASP.NET Core)* | `2-backend-csharp/` | - Viết `MqttWorkerService` kết nối MQTT Broker.<br>- Xây dựng `SignalR Hub` đẩy dữ liệu thời gian thực lên React.<br>- Thiết kế Database (`SensorReadings`, `EventLogs`) bằng EF Core + SQLite.<br>- Viết các API: `POST /api/device/command`, `GET /api/analytics/summary`, `GET /api/logs/export-csv`. |
-| **3. Mảng Frontend UI**<br>*(React + Tailwind)* | `3-frontend-react/` | - Dựng giao diện Responsive 2 Tab (`Điều khiển` & `Dashboard Thống kê`).<br>- Kết nối `SignalR` nhận dữ liệu live và gọi API điều khiển 2 chiều.<br>- Tích hợp biểu đồ `Recharts`/`Chart.js`, Modal Báo cháy khẩn cấp và Mã QR Mobile. |
+| Mảng công việc | Thành viên | Thư mục trong Git | Nhiệm vụ cụ thể |
+| :--- | :---: | :---: | :--- |
+| **1. Quản lý Git & Backend C#**<br>*(ASP.NET Core 3-Layer)* | **Nhóm trưởng (Bạn)** | `2-backend-csharp/` | - Quản lý GitHub, nhánh & duyệt Merge PR.<br>- Xây dựng `MqttWorkerService` kết nối MQTT Broker.<br>- Xây dựng `SignalR Hub` (`/hubs/smarthome`) và REST API (`DeviceController`, `AnalyticsController`, xuất Excel `.CSV`). |
+| **2. Mảng Nhúng & IoT**<br>*(ESP32 Firmware & MQTTX)* | **Thành viên 2** | `1-firmware-esp32/` | - Giữ nguyên logic phần cứng ổn định của 13 thiết bị.<br>- Tích hợp Wi-Fi + MQTT 3.1.1 gửi JSON `telemetry` mỗi 1 giây và xử lý 5 lệnh JSON tại `command`.<br>- Kiểm thử giả lập gói tin bằng `MQTTX`. |
+| **3. Mảng Giao diện Web**<br>*(React + Tailwind CSS)* | **Thành viên 3** | `3-frontend-react/` | - Dựng giao diện Web trên máy tính: Tab `Điều khiển & Giám sát` thời gian thực.<br>- Kết nối `SignalR` nhận dữ liệu live, Modal Báo cháy khẩn cấp.<br>- Phát triển Tab `Dashboard Thống kê` (Thẻ KPI, Biểu đồ biến thiên, Bảng nhật ký & Xuất Excel `.CSV`). |
+| **4. Mảng Ứng dụng Di động**<br>*(React Native + Expo)* | **Thành viên 4** | `4-mobile-react-native/` | - Xây dựng App Mobile chạy trên iOS/Android qua Expo Go.<br>- Cho phép nhập IP LAN Server C# (`192.168.1.31:5000`), xem 4 cảm biến thời gian thực.<br>- Điều khiển cảm ứng 2 chiều 4 cụm thiết bị và kích hoạt Rung điện thoại (`Vibration`) khi báo cháy. |

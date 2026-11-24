@@ -17,9 +17,11 @@
 *.sqlite3
 
 # ==========================================================
-# Node.js / React / Vite
+# Node.js / React / Vite / React Native (Expo)
 # ==========================================================
 node_modules/
+.expo/
+.expo-shared/
 dist/
 dist-ssr/
 *.local
