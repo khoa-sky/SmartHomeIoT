@@ -1,0 +1,47 @@
+# ==========================================================
+# .NET / C# / Visual Studio (Tím & Xanh)
+# ==========================================================
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ==========================================================
+# Node.js / React / Vite
+# ==========================================================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ==========================================================
+# Arduino / ESP32 Build Artifacts
+# ==========================================================
+*.bin
+*.elf
+*.map
+*.hex
+build/
+
+# ==========================================================
+# OS & IDE
+# ==========================================================
+.DS_Store
+Thumbs.db
