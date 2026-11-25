@@ -94,7 +94,8 @@ unsigned long tLua = 0, tDat = 0, tMua = 0, tLCD = 0, tSerial = 0, tDHT = 0;
 unsigned long tBom = 0, tTatBom = 0, tCoi = 0, tLED = 0;
 
 bool mqttConnected = false;
-unsigned long tMqttReconnect = 0, tMqttPub = 0, tMqttPing = 0;
+bool mqttConnecting = false;
+unsigned long tMqttReconnect = 0, tMqttConnectSent = 0, tMqttPub = 0, tMqttPing = 0;
 bool canGuiCapNhatNgay = false;
 
 // ============================================================
@@ -284,6 +285,7 @@ void dieuKhienDen() {
 void dieuKhienDenCanhBao() {
   if (testBaoDong && (millis() - tBatDauTestBaoDong >= 2000)) {
     testBaoDong = false;
+    canGuiCapNhatNgay = true;
   }
 
   if (coLua || testBaoDong) {
@@ -468,39 +470,66 @@ bool mqttSubscribe(const char* topic) {
 void xuLyLenhMqtt(const String& json) {
   Serial.println("[MQTT NHAN LENH] " + json);
 
-  if (json.indexOf("\"LIGHT\"") >= 0) {
-    if (json.indexOf("\"ON\"") >= 0 || json.indexOf("true") >= 0) datTrangThaiDen(true);
-    else if (json.indexOf("\"OFF\"") >= 0 || json.indexOf("false") >= 0) datTrangThaiDen(false);
-    else if (json.indexOf("\"TOGGLE\"") >= 0) datTrangThaiDen(!denBat);
+  String upper = json;
+  upper.toUpperCase();
+
+  if (upper.indexOf("\"LIGHT\"") >= 0) {
+    if (upper.indexOf("\"ON\"") >= 0 || upper.indexOf("TRUE") >= 0) datTrangThaiDen(true);
+    else if (upper.indexOf("\"OFF\"") >= 0 || upper.indexOf("FALSE") >= 0) datTrangThaiDen(false);
+    else if (upper.indexOf("\"TOGGLE\"") >= 0) datTrangThaiDen(!denBat);
   }
-  else if (json.indexOf("\"PIR_LOCK\"") >= 0) {
-    if (json.indexOf("\"UNLOCK\"") >= 0 || json.indexOf("false") >= 0) datCheDoKhoaPIR(false);
-    else if (json.indexOf("\"LOCK\"") >= 0 || json.indexOf("true") >= 0) datCheDoKhoaPIR(true);
-    else if (json.indexOf("\"TOGGLE\"") >= 0) datCheDoKhoaPIR(!khoaPIR);
+  else if (upper.indexOf("\"PIR_LOCK\"") >= 0) {
+    if (upper.indexOf("\"UNLOCK\"") >= 0 || upper.indexOf("FALSE") >= 0) datCheDoKhoaPIR(false);
+    else if (upper.indexOf("\"LOCK\"") >= 0 || upper.indexOf("TRUE") >= 0) datCheDoKhoaPIR(true);
+    else if (upper.indexOf("\"TOGGLE\"") >= 0) datCheDoKhoaPIR(!khoaPIR);
   }
-  else if (json.indexOf("\"SERVO\"") >= 0) {
-    if (json.indexOf("\"OUT\"") >= 0) { servoMode = SERVO_FORCE_OUT; quayServo(GOC_PHOI_DO); }
-    else if (json.indexOf("\"IN\"") >= 0) { servoMode = SERVO_FORCE_IN; quayServo(GOC_THU_DO); }
-    else if (json.indexOf("\"AUTO\"") >= 0) { servoMode = SERVO_AUTO; canGuiCapNhatNgay = true; }
+  else if (upper.indexOf("\"SERVO\"") >= 0) {
+    if (upper.indexOf("\"OUT\"") >= 0) {
+      servoMode = SERVO_FORCE_OUT;
+      quayServo(GOC_PHOI_DO);
+      canGuiCapNhatNgay = true;
+    }
+    else if (upper.indexOf("\"IN\"") >= 0) {
+      servoMode = SERVO_FORCE_IN;
+      quayServo(GOC_THU_DO);
+      canGuiCapNhatNgay = true;
+    }
+    else if (upper.indexOf("\"AUTO\"") >= 0) {
+      servoMode = SERVO_AUTO;
+      quayServo(coMua ? GOC_THU_DO : GOC_PHOI_DO);
+      canGuiCapNhatNgay = true;
+    }
   }
-  else if (json.indexOf("\"PUMP\"") >= 0) {
-    if (json.indexOf("\"UNLOCK\"") >= 0) {
+  else if (upper.indexOf("\"PUMP\"") >= 0) {
+    if (upper.indexOf("\"UNLOCK\"") >= 0) {
       khoaBom = false;
       soLanTuoi = 0;
       canGuiCapNhatNgay = true;
-    } else if (json.indexOf("\"START\"") >= 0) {
-      khoaBom = false;
-      if (bomState != BOM_CHAY) batDauBom();
-    } else if (json.indexOf("\"STOP\"") >= 0) {
+    } else if (upper.indexOf("\"START\"") >= 0) {
+      if (!coLua) {
+        khoaBom = false;
+        if (soLanTuoi >= SO_LAN_TUOI_TOI_DA) soLanTuoi = 0;
+        if (bomState != BOM_CHAY) batDauBom();
+      }
+    } else if (upper.indexOf("\"STOP\"") >= 0) {
       if (bomState == BOM_CHAY) tatBom();
     }
   }
-  else if (json.indexOf("\"ALARM_TEST\"") >= 0) {
-    if (json.indexOf("\"OFF\"") >= 0 || json.indexOf("false") >= 0) {
+  else if (upper.indexOf("\"ALARM_TEST\"") >= 0) {
+    if (upper.indexOf("\"OFF\"") >= 0 || upper.indexOf("FALSE") >= 0) {
       testBaoDong = false;
+      denDoBat = false;
+      digitalWrite(ALARM_LED_PIN, LOW);
+      digitalWrite(BUZZER_PIN, LOW);
+      coiBat = false;
     } else {
       testBaoDong = true;
       tBatDauTestBaoDong = millis();
+      coiBat = true;
+      denDoBat = true;
+      tCoi = millis();
+      digitalWrite(BUZZER_PIN, HIGH);
+      digitalWrite(ALARM_LED_PIN, HIGH);
     }
     canGuiCapNhatNgay = true;
   }
@@ -512,6 +541,8 @@ void docGoiTinMqtt() {
     int mult = 1, remLen = 0;
     uint8_t enc;
     do {
+      unsigned long tEnc = millis();
+      while (!wifiClient.available() && (millis() - tEnc < 20)) {}
       if (!wifiClient.available()) return;
       enc = wifiClient.read();
       remLen += (enc & 127) * mult;
@@ -521,7 +552,7 @@ void docGoiTinMqtt() {
     uint8_t buf[512];
     int nRead = 0;
     unsigned long tWait = millis();
-    while (nRead < remLen && (millis() - tWait < 50)) {
+    while (nRead < remLen && (millis() - tWait < 80)) {
       if (wifiClient.available()) {
         int c = wifiClient.read();
         if (nRead < 511) buf[nRead] = (uint8_t)c;
@@ -529,8 +560,23 @@ void docGoiTinMqtt() {
       }
     }
 
-    // Nếu là gói tin PUBLISH (0x30..0x3F)
-    if ((type & 0xF0) == 0x30 && nRead >= 2) {
+    // Gói CONNACK (0x20): xác nhận kết nối MQTT 3.1.1 thành công (Non-blocking)
+    if (type == 0x20 && nRead >= 2) {
+      if (buf[1] == 0x00) {
+        mqttConnected = true;
+        mqttConnecting = false;
+        mqttSubscribe(TOPIC_COMMAND);
+        Serial.printf("[MQTT OK] Da ket noi %s:%d | Subscribed: %s\n", MQTT_HOST, MQTT_PORT, TOPIC_COMMAND);
+        canGuiCapNhatNgay = true;
+      } else {
+        Serial.printf("[MQTT LOI] Broker tu choi CONNACK (rc=%d)\n", buf[1]);
+        mqttConnected = false;
+        mqttConnecting = false;
+        wifiClient.stop();
+      }
+    }
+    // Gói PUBLISH (0x30..0x3F): nhận lệnh JSON điều khiển từ Backend C# / MQTTX
+    else if ((type & 0xF0) == 0x30 && nRead >= 2) {
       int topicLen = (buf[0] << 8) | buf[1];
       int payloadStart = 2 + topicLen;
       if (((type >> 1) & 0x03) > 0) payloadStart += 2; // Bỏ qua Packet ID nếu QoS > 0
@@ -562,17 +608,20 @@ void guiTelemetryMqtt() {
 }
 
 void capNhatWiFiVaMqtt() {
-  if (bomState == BOM_CHAY || servoDangQuay) return; // Ưu tiên phần cứng tuyệt đối khi bơm/servo đang chạy
-
   if (WiFi.status() != WL_CONNECTED) {
+    if (wifiClient.connected()) wifiClient.stop();
     mqttConnected = false;
+    mqttConnecting = false;
     return;
   }
 
   unsigned long now = millis();
   if (!wifiClient.connected()) {
     mqttConnected = false;
-    if (now - tMqttReconnect < 5000) return; // Thử kết nối lại mỗi 5 giây
+    mqttConnecting = false;
+    // Không thực hiện TCP connect mới khi bơm/servo đang chạy để ưu tiên nguồn & tránh sụt áp
+    if (bomState == BOM_CHAY || servoDangQuay) return;
+    if (tMqttReconnect != 0 && (now - tMqttReconnect < 5000)) return; // Thử kết nối lại mỗi 5 giây
     tMqttReconnect = now;
 
     wifiClient.setTimeout(1);
@@ -595,24 +644,24 @@ void capNhatWiFiVaMqtt() {
       idx += idLen;
       wifiClient.write(pkt, idx);
 
-      delay(50);
-      if (wifiClient.available() >= 4) {
-        uint8_t b1 = wifiClient.read();
-        uint8_t b2 = wifiClient.read();
-        uint8_t b3 = wifiClient.read();
-        uint8_t rc = wifiClient.read();
-        if (b1 == 0x20 && rc == 0x00) {
-          mqttConnected = true;
-          mqttSubscribe(TOPIC_COMMAND);
-          Serial.printf("[MQTT OK] Da ket noi %s:%d | Subscribed: %s\n", MQTT_HOST, MQTT_PORT, TOPIC_COMMAND);
-          canGuiCapNhatNgay = true;
-        }
-      }
+      mqttConnecting = true;
+      tMqttConnectSent = now;
+      tMqttPing = now;
     }
     return;
   }
 
   docGoiTinMqtt();
+
+  // Nếu gửi CONNECT nhưng quá 4 giây Broker chưa trả CONNACK -> đóng socket để thử lại
+  if (!mqttConnected) {
+    if (mqttConnecting && (now - tMqttConnectSent >= 4000)) {
+      Serial.println("[MQTT TIMEOUT] Khong nhan duoc CONNACK, se thu ket noi lai...");
+      mqttConnecting = false;
+      wifiClient.stop();
+    }
+    return;
+  }
 
   if (canGuiCapNhatNgay || (now - tMqttPub >= 1000)) {
     tMqttPub = now;
