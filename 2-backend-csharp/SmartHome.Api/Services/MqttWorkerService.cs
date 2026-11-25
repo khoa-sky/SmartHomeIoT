@@ -28,6 +28,11 @@ public class MqttWorkerService : BackgroundService
     private DateTime _lastPacketReceived = DateTime.MinValue;
 
     public bool IsBrokerConnected => _tcpClient?.Connected == true;
+    public DateTime LastPacketReceived => _lastPacketReceived;
+    public string BrokerHost => _config["MqttSettings:Host"] ?? "broker.emqx.io";
+    public int BrokerPort => int.TryParse(_config["MqttSettings:Port"], out var p) ? p : 1883;
+    public string TelemetryTopic => _config["MqttSettings:TelemetryTopic"] ?? "smarthome/khoa2026/telemetry";
+    public string CommandTopic => _config["MqttSettings:CommandTopic"] ?? "smarthome/khoa2026/command";
 
     public MqttWorkerService(
         ILogger<MqttWorkerService> logger,
@@ -279,6 +284,12 @@ public class MqttWorkerService : BackgroundService
         else if (prev.Rain && !curr.Rain)
         {
             var log = _repo.AddLog("GIAN_PHOI", "CAM_BIEN_MUA", $"Trời đã TẠNH MƯA (khô ráo sau 2s) -> Động cơ Servo đưa giàn phơi ra ({curr.ServoAngle}°).");
+            await _hub.Clients.All.SendAsync("NewEventLog", log);
+        }
+        else if (prev.ServoAngle != curr.ServoAngle || !string.Equals(prev.ServoMode, curr.ServoMode, StringComparison.OrdinalIgnoreCase))
+        {
+            string trangThaiPhoi = curr.ServoAngle > 90 ? "THU ĐỒ VÀO MÁI HIÊN" : "ĐƯA ĐỒ RA PHƠI";
+            var log = _repo.AddLog("GIAN_PHOI", "SERVO_SG90", $"Giàn phơi chuyển sang chế độ [{curr.ServoMode}] -> {trangThaiPhoi} (Góc Servo: {curr.ServoAngle}°).");
             await _hub.Clients.All.SendAsync("NewEventLog", log);
         }
 
