@@ -13,6 +13,9 @@
     },
     "android": {
       "package": "com.khoa2026.smarthomeiot"
-    }
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
   }
 }
