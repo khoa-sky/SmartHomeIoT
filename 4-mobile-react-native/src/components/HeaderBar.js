@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,19 +7,48 @@ import {
   ActivityIndicator,
   StyleSheet
 } from 'react-native';
-import { TABULAR_NUMS } from '../theme/tokens';
+import { CARD_SHADOW, TABULAR_NUMS } from '../theme/tokens';
 import { normalizeServerInput } from '../services/mobileApi';
 
+export const NAV_META = {
+  overview: {
+    viLabel: 'Tổng quan hệ thống',
+    subtitle: 'Intelligent living, naturally.'
+  },
+  devices: {
+    viLabel: 'Thiết bị thông minh',
+    subtitle: 'Chiếu sáng & Giàn phơi tự động'
+  },
+  garden: {
+    viLabel: 'Tưới tiêu & Độ ẩm đất',
+    subtitle: 'Giám sát LM393 & Bảo vệ máy bơm'
+  },
+  security: {
+    viLabel: 'An ninh & Báo cháy',
+    subtitle: 'Cảm biến lửa IO34, Buzzer & PIR'
+  },
+  analytics: {
+    viLabel: 'Phân tích & Nhật ký',
+    subtitle: 'Biểu đồ lịch sử & Xuất báo cáo CSV'
+  },
+  settings: {
+    viLabel: 'Cấu hình hệ thống',
+    subtitle: 'Mạng LAN, MQTT Broker & Giao diện'
+  }
+};
+
 function formatElapsed(secondsAgo) {
-  if (secondsAgo === null || secondsAgo === undefined) return 'Chưa có gói tin';
-  if (secondsAgo < 2) return 'Vừa cập nhật';
-  if (secondsAgo < 60) return `${secondsAgo} giây trước`;
+  if (secondsAgo === null || secondsAgo === undefined) return 'Chờ gói tin';
+  if (secondsAgo < 2) return 'Vừa đồng bộ';
+  if (secondsAgo < 60) return `${secondsAgo}s trước`;
   const mins = Math.floor(secondsAgo / 60);
-  return `${mins} phút trước`;
+  return `${mins}p trước`;
 }
 
 function HeaderBar({
   theme,
+  activeTab = 'overview',
+  telemetry,
   telemetryOnline,
   hubConnected,
   connecting,
@@ -27,133 +56,314 @@ function HeaderBar({
   serverIp,
   activeIp,
   ipEditorOpen,
+  recentLogs = [],
   onToggleIpEditor,
   onChangeServerIp,
   onSubmitIp,
-  onToggleTheme
+  onToggleTheme,
+  onSelectTab
 }) {
+  const [notifOpen, setNotifOpen] = useState(false);
   const activeAddress = normalizeServerInput(activeIp);
+  const currentMeta = NAV_META[activeTab] || NAV_META.overview;
+  const isFire = Boolean(telemetry?.fireAlert);
 
   return (
     <View
       style={[
         styles.wrapper,
+        CARD_SHADOW,
         {
           backgroundColor: theme.bgCard,
           borderColor: theme.border
         }
       ]}
     >
+      {/* ROW 1: AURA BRAND MONOGRAM + TITLE + ACTIONS */}
       <View style={styles.topRow}>
-        <View style={styles.brandBlock}>
-          <Text style={[styles.title, { color: theme.textPrimary }]} numberOfLines={1}>
-            Smart Home &amp; Garden
-          </Text>
-          <View style={styles.subRow}>
-            <View
-              style={[
-                styles.dot,
-                { backgroundColor: hubConnected ? theme.success : theme.warning }
-              ]}
-            />
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-              {hubConnected ? 'SignalR đã nối C#' : 'Chưa nối Server C#'} •{' '}
-              <Text style={TABULAR_NUMS}>{formatElapsed(secondsAgo)}</Text>
+        <TouchableOpacity
+          onPress={() => onSelectTab && onSelectTab('overview')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Aura Smart Home — Về trang Tổng quan"
+          style={[
+            styles.logoBadge,
+            { backgroundColor: theme.oliveGreen }
+          ]}
+        >
+          <Text style={[styles.logoText, { color: theme.bgCard }]}>AH</Text>
+        </TouchableOpacity>
+
+        <View style={styles.titleBlock}>
+          <View style={styles.brandEyebrowRow}>
+            <Text style={[styles.brandEyebrow, { color: theme.oliveGreen }]}>
+              AURA HOME
+            </Text>
+            <Text style={[styles.dotSep, { color: theme.textMuted }]}>•</Text>
+            <Text
+              style={[styles.elapsedText, TABULAR_NUMS, { color: theme.textSecondary }]}
+              numberOfLines={1}
+            >
+              {formatElapsed(secondsAgo)}
             </Text>
           </View>
+          <Text
+            style={[styles.title, { color: theme.textPrimary }]}
+            numberOfLines={1}
+          >
+            {currentMeta.viLabel}
+          </Text>
+          <Text
+            style={[styles.subtitle, { color: theme.textSecondary }]}
+            numberOfLines={1}
+          >
+            {currentMeta.subtitle}
+          </Text>
         </View>
 
         <View style={styles.rightActions}>
-          <View
+          {/* Notification Bell Button */}
+          <TouchableOpacity
+            onPress={() => setNotifOpen((v) => !v)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Xem thông báo hoạt động hệ thống gần nhất"
             style={[
-              styles.statusPill,
+              styles.actionIconBtn,
               {
-                backgroundColor: telemetryOnline ? theme.successSoft : theme.warningSoft,
-                borderColor: telemetryOnline ? theme.success : theme.warning
+                backgroundColor: notifOpen ? theme.softGreen : theme.bgSubtle,
+                borderColor: theme.border
               }
             ]}
-            accessibilityLabel={
-              telemetryOnline ? 'Mạch ESP32 đang trực tuyến' : 'Đang chờ dữ liệu MQTT từ ESP32'
-            }
           >
-            <View
-              style={[
-                styles.dot,
-                { backgroundColor: telemetryOnline ? theme.success : theme.warning }
-              ]}
-            />
-            <Text
-              style={[
-                styles.statusText,
-                { color: telemetryOnline ? theme.success : theme.warning }
-              ]}
-            >
-              {telemetryOnline ? 'ESP32 ONLINE' : 'CHỜ MQTT'}
+            <Text style={[styles.actionIconLabel, { color: theme.textPrimary }]}>
+              Nhật ký
             </Text>
-          </View>
+            {isFire ? (
+              <View style={[styles.notifDot, { backgroundColor: theme.danger }]} />
+            ) : recentLogs.length > 0 ? (
+              <View style={[styles.notifDot, { backgroundColor: theme.success }]} />
+            ) : null}
+          </TouchableOpacity>
 
+          {/* Light / Dark Mode Switch */}
           <TouchableOpacity
             onPress={onToggleTheme}
             activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel={
-              theme.mode === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'
+              theme.mode === 'dark'
+                ? 'Chuyển sang giao diện Sáng (Signature Light)'
+                : 'Chuyển sang giao diện Tối (Botanical Dark)'
             }
             style={[
-              styles.iconBtn,
+              styles.actionIconBtn,
               {
-                backgroundColor: theme.bgElevated,
+                backgroundColor: theme.bgSubtle,
                 borderColor: theme.border
               }
             ]}
           >
-            <Text style={[styles.iconBtnText, { color: theme.textPrimary }]}>
+            <Text style={[styles.actionIconLabel, { color: theme.textPrimary }]}>
               {theme.mode === 'dark' ? 'Sáng' : 'Tối'}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.serverBarRow}>
+      {/* ROW 2: 3 STATUS PILLS (SIGNALR + ESP32 + LAN IP) MATCHING WEB HEADER */}
+      <View style={styles.pillsRow}>
+        {/* 1. SignalR Hub Status Pill */}
+        <View
+          style={[
+            styles.statusPill,
+            {
+              backgroundColor: theme.bgSubtle,
+              borderColor: theme.border
+            }
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+              {
+                backgroundColor: hubConnected
+                  ? theme.success
+                  : connecting
+                  ? theme.warning
+                  : theme.danger
+              }
+            ]}
+          />
+          <Text
+            style={[styles.statusPillText, { color: theme.textPrimary }]}
+            numberOfLines={1}
+          >
+            {hubConnected
+              ? 'SignalR: Đã kết nối'
+              : connecting
+              ? 'SignalR: Đang nối…'
+              : 'Mất kết nối C#'}
+          </Text>
+        </View>
+
+        {/* 2. ESP32 Online / Standby Pill */}
+        <View
+          style={[
+            styles.statusPill,
+            {
+              backgroundColor: telemetryOnline
+                ? theme.softGreen
+                : theme.bgSubtle,
+              borderColor: theme.border
+            }
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+              {
+                backgroundColor: telemetryOnline
+                  ? theme.oliveGreen
+                  : theme.textSecondary
+              }
+            ]}
+          />
+          <Text
+            style={[
+              styles.statusPillText,
+              {
+                color: telemetryOnline
+                  ? theme.oliveGreen
+                  : theme.textSecondary
+              }
+            ]}
+            numberOfLines={1}
+          >
+            {telemetryOnline ? 'ESP32 Online' : 'Chờ dữ liệu MQTT'}
+          </Text>
+        </View>
+
+        {/* 3. LAN IP Pill (Tappable to open IP input) */}
         <TouchableOpacity
           onPress={onToggleIpEditor}
           activeOpacity={0.75}
           accessibilityRole="button"
-          accessibilityLabel="Mở hoặc thu gọn cấu hình IP Server C#"
+          accessibilityLabel="Mở hoặc thu gọn cấu hình IP LAN Server C#"
           style={[
-            styles.ipPillBtn,
+            styles.statusPill,
+            styles.ipStatusPill,
             {
-              backgroundColor: theme.bgElevated,
+              backgroundColor: ipEditorOpen ? theme.softGreen : theme.bgSubtle,
               borderColor: hubConnected ? theme.border : theme.warning
             }
           ]}
         >
-          <Text style={[styles.ipPillLabel, { color: theme.textSecondary }]}>Server C#:</Text>
-          <Text style={[styles.ipPillValue, TABULAR_NUMS, { color: theme.textPrimary }]}>
-            {activeAddress}
+          <Text
+            style={[
+              styles.statusPillText,
+              TABULAR_NUMS,
+              { color: theme.textPrimary }
+            ]}
+            numberOfLines={1}
+          >
+            LAN: {activeAddress}
           </Text>
-          <Text style={[styles.ipPillChevron, { color: theme.accentStrong }]}>
-            {ipEditorOpen ? 'Thu gọn' : 'Đổi IP'}
+          <Text style={[styles.changeIpHint, { color: theme.oliveGreen }]}>
+            {ipEditorOpen ? 'Ẩn' : 'Đổi'}
           </Text>
         </TouchableOpacity>
       </View>
 
+      {/* COLLAPSIBLE NOTIFICATION POPOVER (RECENT SYSTEM LOGS) */}
+      {notifOpen ? (
+        <View
+          style={[
+            styles.notifPanel,
+            {
+              backgroundColor: theme.bgElevated,
+              borderColor: theme.border
+            }
+          ]}
+        >
+          <View style={styles.notifHeader}>
+            <Text style={[styles.notifTitle, { color: theme.textPrimary }]}>
+              Hoạt động hệ thống gần nhất
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setNotifOpen(false);
+                if (onSelectTab) onSelectTab('analytics');
+              }}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.notifLink, { color: theme.oliveGreen }]}>
+                Xem tất cả →
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {recentLogs.length === 0 ? (
+            <Text style={[styles.notifEmpty, { color: theme.textSecondary }]}>
+              Chưa có thông báo mới trong phiên này.
+            </Text>
+          ) : (
+            <View style={styles.notifList}>
+              {recentLogs.slice(0, 3).map((item, idx) => (
+                <View
+                  key={item.id || idx}
+                  style={[
+                    styles.notifItem,
+                    { backgroundColor: theme.bgCard, borderColor: theme.border }
+                  ]}
+                >
+                  <Text
+                    style={[styles.notifMsg, { color: theme.textPrimary }]}
+                    numberOfLines={2}
+                  >
+                    {item.message}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.notifMeta,
+                      TABULAR_NUMS,
+                      { color: theme.textSecondary }
+                    ]}
+                  >
+                    {item.category || 'SYSTEM'} • {item.source || 'ESP32'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      ) : null}
+
+      {/* COLLAPSIBLE LAN IP CONFIG EDITOR */}
       {ipEditorOpen ? (
-        <View style={styles.editorBox}>
+        <View
+          style={[
+            styles.editorBox,
+            {
+              backgroundColor: theme.bgSubtle,
+              borderColor: theme.border
+            }
+          ]}
+        >
           <View style={styles.inputRow}>
             <TextInput
               style={[
                 styles.ipInput,
                 TABULAR_NUMS,
                 {
-                  backgroundColor: theme.bgMain,
+                  backgroundColor: theme.bgCard,
                   borderColor: theme.border,
                   color: theme.textPrimary
                 }
               ]}
               value={serverIp}
               onChangeText={onChangeServerIp}
-              placeholder="IP Wi-Fi Laptop (VD: 192.168.1.31)…"
+              placeholder="IP Wi-Fi máy chạy C# (VD: 192.168.1.31)…"
               placeholderTextColor={theme.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -172,30 +382,24 @@ function HeaderBar({
               style={[
                 styles.connectBtn,
                 {
-                  backgroundColor: hubConnected ? theme.success : theme.accent,
+                  backgroundColor: theme.oliveGreen,
                   opacity: connecting ? 0.7 : 1
                 }
               ]}
             >
               {connecting ? (
-                <ActivityIndicator
-                  size="small"
-                  color={hubConnected ? theme.successTextOn : theme.accentTextOn}
-                />
+                <ActivityIndicator size="small" color={theme.accentTextOn} />
               ) : (
                 <Text
-                  style={[
-                    styles.connectBtnText,
-                    { color: hubConnected ? theme.successTextOn : theme.accentTextOn }
-                  ]}
+                  style={[styles.connectBtnText, { color: theme.accentTextOn }]}
                 >
-                  {hubConnected ? 'Kết nối lại' : 'Kết Nối'}
+                  {hubConnected ? 'Đồng bộ' : 'Kết nối'}
                 </Text>
               )}
             </TouchableOpacity>
           </View>
           <Text style={[styles.helperText, { color: theme.textSecondary }]}>
-            Điện thoại &amp; Laptop phải chung Wi-Fi. Backend C# mở tại cổng 5000 (trình giả lập Android dùng 10.0.2.2).
+            Điện thoại &amp; Laptop chung Wi-Fi (cổng 5000). Máy ảo Android dùng 10.0.2.2.
           </Text>
         </View>
       ) : null}
@@ -205,45 +409,89 @@ function HeaderBar({
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: 18,
+    borderRadius: 24,
     borderWidth: 1,
-    padding: 14,
-    gap: 10
+    padding: 15,
+    gap: 12
   },
   topRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8
+    gap: 11
   },
-  brandBlock: {
+  logoBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  logoText: {
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.4
+  },
+  titleBlock: {
     flex: 1,
     minWidth: 0
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.3
-  },
-  subRow: {
+  brandEyebrowRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 3
+    gap: 5
+  },
+  brandEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8
+  },
+  dotSep: {
+    fontSize: 10
+  },
+  elapsedText: {
+    fontSize: 10,
+    fontWeight: '600'
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    marginTop: 1
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '500',
-    flexShrink: 1
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4
+    marginTop: 1
   },
   rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6
+  },
+  actionIconBtn: {
+    minHeight: 36,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative'
+  },
+  actionIconLabel: {
+    fontSize: 11.5,
+    fontWeight: '600'
+  },
+  notifDot: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 6,
+    height: 6,
+    borderRadius: 3
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 6
   },
   statusPill: {
@@ -252,54 +500,74 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 12,
     borderWidth: 1
   },
-  statusText: {
+  ipStatusPill: {
+    flex: 1,
+    minWidth: 145,
+    justifyContent: 'space-between'
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
+  },
+  statusPillText: {
     fontSize: 11,
-    fontWeight: '800'
+    fontWeight: '600'
   },
-  iconBtn: {
-    minHeight: 34,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  iconBtnText: {
-    fontSize: 12,
+  changeIpHint: {
+    fontSize: 11,
     fontWeight: '700'
   },
-  serverBarRow: {
-    flexDirection: 'row'
-  },
-  ipPillBtn: {
-    flex: 1,
-    minHeight: 40,
-    borderRadius: 12,
+  notifPanel: {
+    borderRadius: 16,
     borderWidth: 1,
-    paddingHorizontal: 12,
+    padding: 12,
+    gap: 8
+  },
+  notifHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  notifTitle: {
+    fontSize: 12.5,
+    fontWeight: '700'
+  },
+  notifLink: {
+    fontSize: 11.5,
+    fontWeight: '700'
+  },
+  notifEmpty: {
+    fontSize: 12,
+    paddingVertical: 6,
+    textAlign: 'center'
+  },
+  notifList: {
     gap: 6
   },
-  ipPillLabel: {
+  notifItem: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2
+  },
+  notifMsg: {
     fontSize: 12,
     fontWeight: '600'
   },
-  ipPillValue: {
-    fontSize: 12,
-    fontWeight: '700',
-    flex: 1
-  },
-  ipPillChevron: {
-    fontSize: 12,
-    fontWeight: '700'
+  notifMeta: {
+    fontSize: 10.5,
+    fontWeight: '500'
   },
   editorBox: {
-    gap: 8,
-    paddingTop: 2
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 11,
+    gap: 8
   },
   inputRow: {
     flexDirection: 'row',
@@ -307,30 +575,29 @@ const styles = StyleSheet.create({
   },
   ipInput: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 44,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 12,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '600'
   },
   connectBtn: {
-    minHeight: 46,
-    minWidth: 96,
-    paddingHorizontal: 16,
+    minHeight: 44,
+    minWidth: 92,
+    paddingHorizontal: 15,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center'
   },
   connectBtnText: {
-    fontSize: 13,
-    fontWeight: '800'
+    fontSize: 12.5,
+    fontWeight: '700'
   },
   helperText: {
     fontSize: 11,
-    lineHeight: 16
+    lineHeight: 15
   }
 });
 
 export default memo(HeaderBar);
-

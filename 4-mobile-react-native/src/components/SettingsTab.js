@@ -6,10 +6,14 @@ import {
   TouchableOpacity,
   Switch,
   ActivityIndicator,
+  Linking,
   StyleSheet
 } from 'react-native';
-import { TABULAR_NUMS } from '../theme/tokens';
-import { buildBaseUrl } from '../services/mobileApi';
+import { CARD_SHADOW, TABULAR_NUMS } from '../theme/tokens';
+import {
+  buildBaseUrl,
+  getMobileExportCsvUrl
+} from '../services/mobileApi';
 
 const IP_PRESETS = [
   { label: 'LAN mặc định (192.168.1.31)', value: '192.168.1.31' },
@@ -26,8 +30,13 @@ const PINOUT_SUMMARY = [
   { device: 'Cảm biến Lửa, Còi & 2 Đèn Đỏ', pin: 'IO34 (Lửa) • IO19 • IO14' }
 ];
 
+/**
+ * SettingsTab — Apple-Settings-style Grouped Configuration Page
+ * Synchronized 100% with 3-frontend-react/src/components/SettingsView.jsx
+ */
 function SettingsTab({
   theme,
+  telemetry,
   serverIp,
   activeIp,
   hubConnected,
@@ -38,185 +47,432 @@ function SettingsTab({
   onSelectPresetIp,
   onSubmitIp,
   onToggleVibration,
-  onToggleTheme
+  onToggleTheme,
+  onRequestClearLogs
 }) {
+  const handleDownloadCsv = () => {
+    const url = getMobileExportCsvUrl(activeIp);
+    Linking.openURL(url).catch(() => {});
+  };
+
   return (
     <View style={styles.stack}>
-      {/* CẤU HÌNH SERVER C# */}
-      <View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-          Kết nối Backend C# qua Wi-Fi LAN
-        </Text>
-        <Text style={[styles.cardSub, { color: theme.textSecondary }]}>
-          Nhập địa chỉ IPv4 của máy tính đang chạy SmartHome.Api (cổng 5000).
-        </Text>
-
-        <View style={styles.inputRow}>
-          <TextInput
+      {/* TOP BANNER: AURA SMART HOME 2.0 — LUXURY EDITION */}
+      <View
+        style={[
+          styles.card,
+          CARD_SHADOW,
+          { backgroundColor: theme.bgCard, borderColor: theme.border }
+        ]}
+      >
+        <View style={styles.bannerTop}>
+          <View
             style={[
-              styles.input,
-              TABULAR_NUMS,
-              {
-                backgroundColor: theme.bgMain,
-                borderColor: theme.border,
-                color: theme.textPrimary
-              }
-            ]}
-            value={serverIp}
-            onChangeText={onChangeServerIp}
-            placeholder="VD: 192.168.1.31…"
-            placeholderTextColor={theme.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="numbers-and-punctuation"
-            accessibilityLabel="Địa chỉ IP Server Backend C#"
-          />
-          <TouchableOpacity
-            onPress={onSubmitIp}
-            disabled={connecting}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Áp dụng và kết nối IP Server"
-            style={[
-              styles.saveBtn,
-              { backgroundColor: theme.accent, opacity: connecting ? 0.7 : 1 }
+              styles.cpuIconBox,
+              { backgroundColor: theme.oliveSoft }
             ]}
           >
-            {connecting ? (
-              <ActivityIndicator size="small" color={theme.accentTextOn} />
-            ) : (
-              <Text style={[styles.saveBtnText, { color: theme.accentTextOn }]}>Kết nối</Text>
-            )}
-          </TouchableOpacity>
+            <Text style={[styles.cpuIconText, { color: theme.oliveGreen }]}>
+              AH
+            </Text>
+          </View>
+          <View style={styles.bannerTitleWrap}>
+            <Text style={[styles.bannerTitle, { color: theme.textPrimary }]}>
+              AURA SMART HOME 2.0 — LUXURY EDITION
+            </Text>
+            <Text style={[styles.bannerSub, { color: theme.textSecondary }]}>
+              Vietduino ESP32 (N16) • ASP.NET Core 8.0 SignalR • React Native Expo
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.presetRow}>
-          {IP_PRESETS.map((preset) => (
-            <TouchableOpacity
-              key={preset.value}
-              onPress={() => onSelectPresetIp(preset.value)}
-              activeOpacity={0.75}
-              accessibilityRole="button"
+        <View
+          style={[
+            styles.onlineBannerPill,
+            {
+              backgroundColor: telemetry?.online
+                ? theme.successSoft
+                : theme.softGreen
+            }
+          ]}
+        >
+          <View
+            style={[
+              styles.onlineDot,
+              {
+                backgroundColor: telemetry?.online
+                  ? theme.oliveGreen
+                  : theme.textSecondary
+              }
+            ]}
+          />
+          <Text
+            style={[
+              styles.onlineBannerText,
+              {
+                color: telemetry?.online
+                  ? theme.oliveGreen
+                  : theme.textPrimary
+              }
+            ]}
+          >
+            {telemetry?.online ? 'ESP32 Trực tuyến' : 'Chế độ chờ MQTT'}
+          </Text>
+        </View>
+      </View>
+
+      {/* GROUP 1: GIAO DIỆN & TRẢI NGHIỆM CẢNH BÁO */}
+      <View style={styles.groupSection}>
+        <Text style={[styles.groupEyebrow, { color: theme.textSecondary }]}>
+          Giao diện &amp; Trải nghiệm cảnh báo
+        </Text>
+
+        <View
+          style={[
+            styles.card,
+            CARD_SHADOW,
+            { backgroundColor: theme.bgCard, borderColor: theme.border }
+          ]}
+        >
+          {/* Row 1: Light / Dark Mode */}
+          <View
+            style={[
+              styles.settingRow,
+              { borderBottomWidth: 1, borderBottomColor: theme.border }
+            ]}
+          >
+            <View style={styles.settingTextBlock}>
+              <Text style={[styles.settingTitle, { color: theme.textPrimary }]}>
+                Chủ đề hiển thị (Luxury Light / Dark Mode)
+              </Text>
+              <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                Bảng màu nội thất kiến trúc ấm áp ban ngày hoặc xanh rừng sâu ban đêm
+              </Text>
+            </View>
+            <Switch
+              value={theme.mode === 'dark'}
+              onValueChange={onToggleTheme}
+              trackColor={{ false: theme.border, true: theme.oliveGreen }}
+              thumbColor="#FAFCF9"
+            />
+          </View>
+
+          {/* Row 2: Phone Vibration Alert */}
+          <View style={styles.settingRow}>
+            <View style={styles.settingTextBlock}>
+              <Text style={[styles.settingTitle, { color: theme.textPrimary }]}>
+                Rung điện thoại khi báo cháy khẩn cấp
+              </Text>
+              <Text style={[styles.settingSub, { color: theme.textSecondary }]}>
+                Tự động kích hoạt Vibration.vibrate khi cảm biến lửa IO34 báo cháy (ADC &lt; 15)
+              </Text>
+            </View>
+            <Switch
+              value={vibrationEnabled}
+              onValueChange={onToggleVibration}
+              trackColor={{ false: theme.border, true: theme.danger }}
+              thumbColor="#FAFCF9"
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* GROUP 2: KẾT NỐI MẠNG NỘI BỘ LAN & BACKEND C# */}
+      <View style={styles.groupSection}>
+        <Text style={[styles.groupEyebrow, { color: theme.textSecondary }]}>
+          Kết nối mạng nội bộ (LAN) &amp; Backend C#
+        </Text>
+
+        <View
+          style={[
+            styles.card,
+            CARD_SHADOW,
+            { backgroundColor: theme.bgCard, borderColor: theme.border }
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Địa chỉ IPv4 Server C# (Cổng 5000)
+          </Text>
+          <Text style={[styles.cardSub, { color: theme.textSecondary }]}>
+            Nhập địa chỉ IP Wi-Fi của máy tính đang chạy SmartHome.Api để đồng bộ thời gian thực qua SignalR.
+          </Text>
+
+          <View style={styles.inputRow}>
+            <TextInput
               style={[
-                styles.presetChip,
+                styles.input,
+                TABULAR_NUMS,
                 {
-                  backgroundColor: theme.bgElevated,
-                  borderColor: activeIp === preset.value ? theme.accent : theme.border
+                  backgroundColor: theme.bgSubtle,
+                  borderColor: theme.border,
+                  color: theme.textPrimary
+                }
+              ]}
+              value={serverIp}
+              onChangeText={onChangeServerIp}
+              placeholder="VD: 192.168.1.31…"
+              placeholderTextColor={theme.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="numbers-and-punctuation"
+              accessibilityLabel="Địa chỉ IP Server Backend C#"
+            />
+            <TouchableOpacity
+              onPress={onSubmitIp}
+              disabled={connecting}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Áp dụng và kết nối IP Server"
+              style={[
+                styles.saveBtn,
+                {
+                  backgroundColor: theme.oliveGreen,
+                  opacity: connecting ? 0.7 : 1
                 }
               ]}
             >
-              <Text style={[styles.presetText, TABULAR_NUMS, { color: theme.textPrimary }]}>
-                {preset.label}
-              </Text>
+              {connecting ? (
+                <ActivityIndicator size="small" color="#FAFCF9" />
+              ) : (
+                <Text style={styles.saveBtnText}>Kết nối</Text>
+              )}
             </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+          </View>
 
-      {/* TRẠNG THÁI SIGNALR & MQTT BROKER */}
-      <View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-          Chẩn đoán SignalR &amp; MQTT Broker
-        </Text>
-
-        <View style={styles.infoList}>
-          <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.infoKey, { color: theme.textSecondary }]}>Endpoint API</Text>
-            <Text style={[styles.infoVal, TABULAR_NUMS, { color: theme.textPrimary }]}>
-              {buildBaseUrl(activeIp)}
-            </Text>
-          </View>
-          <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.infoKey, { color: theme.textSecondary }]}>SignalR Hub</Text>
-            <Text
-              style={[
-                styles.infoVal,
-                { color: hubConnected ? theme.success : theme.warning }
-              ]}
-            >
-              {hubConnected ? 'Đã kết nối thời gian thực' : 'Chưa kết nối'}
-            </Text>
-          </View>
-          <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.infoKey, { color: theme.textSecondary }]}>MQTT Broker</Text>
-            <Text style={[styles.infoVal, TABULAR_NUMS, { color: theme.textPrimary }]}>
-              {connMeta.brokerHost}:{connMeta.brokerPort}{' '}
-              {connMeta.brokerConnected ? '(Online)' : '(Chờ)'}
-            </Text>
-          </View>
-          <View style={[styles.infoRow, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.infoKey, { color: theme.textSecondary }]}>Topic Telemetry</Text>
-            <Text style={[styles.infoVal, TABULAR_NUMS, { color: theme.textSecondary }]}>
-              {connMeta.telemetryTopic}
-            </Text>
-          </View>
-          <View style={[styles.infoRow, { borderBottomColor: 'transparent' }]}>
-            <Text style={[styles.infoKey, { color: theme.textSecondary }]}>Topic Command</Text>
-            <Text style={[styles.infoVal, TABULAR_NUMS, { color: theme.textSecondary }]}>
-              {connMeta.commandTopic}
-            </Text>
+          <View style={styles.presetRow}>
+            {IP_PRESETS.map((preset) => {
+              const selected = activeIp === preset.value;
+              return (
+                <TouchableOpacity
+                  key={preset.value}
+                  onPress={() => onSelectPresetIp(preset.value)}
+                  activeOpacity={0.78}
+                  accessibilityRole="button"
+                  style={[
+                    styles.presetChip,
+                    {
+                      backgroundColor: selected
+                        ? theme.softGreen
+                        : theme.bgElevated,
+                      borderColor: selected ? theme.oliveGreen : theme.border
+                    }
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.presetText,
+                      TABULAR_NUMS,
+                      {
+                        color: selected ? theme.oliveGreen : theme.textPrimary
+                      }
+                    ]}
+                  >
+                    {preset.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </View>
 
-      {/* TÙY CHỌN ỨNG DỤNG */}
-      <View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-          Tùy chọn giao diện &amp; cảnh báo
+      {/* GROUP 3: CHẨN ĐOÁN SIGNALR & MQTT BROKER */}
+      <View style={styles.groupSection}>
+        <Text style={[styles.groupEyebrow, { color: theme.textSecondary }]}>
+          Chẩn đoán SignalR Hub &amp; MQTT Broker
         </Text>
 
-        <View style={[styles.switchRow, { borderBottomColor: theme.border }]}>
-          <View style={styles.switchTextBlock}>
-            <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>
-              Rung điện thoại khi báo cháy
-            </Text>
-            <Text style={[styles.switchSub, { color: theme.textSecondary }]}>
-              Kích hoạt Vibration.vibrate liên tục khi fireAlert = true
-            </Text>
-          </View>
-          <Switch
-            value={vibrationEnabled}
-            onValueChange={onToggleVibration}
-            trackColor={{ false: theme.border, true: theme.danger }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-
-        <View style={[styles.switchRow, { borderBottomColor: 'transparent' }]}>
-          <View style={styles.switchTextBlock}>
-            <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>
-              Giao diện tối (Dark Mode)
-            </Text>
-            <Text style={[styles.switchSub, { color: theme.textSecondary }]}>
-              Dễ nhìn ban đêm hoặc ngoài trời khi chuyển sang chế độ sáng
-            </Text>
-          </View>
-          <Switch
-            value={theme.mode === 'dark'}
-            onValueChange={onToggleTheme}
-            trackColor={{ false: theme.border, true: theme.accent }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-      </View>
-
-      {/* TRA CỨU NHANH CHÂN CẮM PHẦN CỨNG */}
-      <View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
-        <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-          Sơ đồ chân Vietduino ESP32 (Tra cứu nhanh)
-        </Text>
-        <View style={styles.pinList}>
-          {PINOUT_SUMMARY.map((row) => (
+        <View
+          style={[
+            styles.card,
+            CARD_SHADOW,
+            { backgroundColor: theme.bgCard, borderColor: theme.border }
+          ]}
+        >
+          <View style={styles.infoList}>
             <View
-              key={row.device}
-              style={[styles.pinRow, { backgroundColor: theme.bgElevated }]}
+              style={[styles.infoRow, { borderBottomColor: theme.border }]}
             >
-              <Text style={[styles.pinDevice, { color: theme.textPrimary }]}>{row.device}</Text>
-              <Text style={[styles.pinCode, TABULAR_NUMS, { color: theme.accentStrong }]}>
-                {row.pin}
+              <Text style={[styles.infoKey, { color: theme.textSecondary }]}>
+                Backend REST &amp; Hub
+              </Text>
+              <Text
+                style={[
+                  styles.infoVal,
+                  TABULAR_NUMS,
+                  { color: theme.textPrimary }
+                ]}
+              >
+                {buildBaseUrl(activeIp)}
               </Text>
             </View>
-          ))}
+
+            <View
+              style={[styles.infoRow, { borderBottomColor: theme.border }]}
+            >
+              <Text style={[styles.infoKey, { color: theme.textSecondary }]}>
+                Trạng thái SignalR
+              </Text>
+              <Text
+                style={[
+                  styles.infoVal,
+                  { color: hubConnected ? theme.success : theme.warning }
+                ]}
+              >
+                {hubConnected ? 'Đã kết nối thời gian thực' : 'Chưa kết nối'}
+              </Text>
+            </View>
+
+            <View
+              style={[styles.infoRow, { borderBottomColor: theme.border }]}
+            >
+              <Text style={[styles.infoKey, { color: theme.textSecondary }]}>
+                MQTT Broker
+              </Text>
+              <Text
+                style={[
+                  styles.infoVal,
+                  TABULAR_NUMS,
+                  { color: theme.textPrimary }
+                ]}
+              >
+                {connMeta.brokerHost}:{connMeta.brokerPort}{' '}
+                {connMeta.brokerConnected ? '(Connected)' : '(Standby)'}
+              </Text>
+            </View>
+
+            <View
+              style={[styles.infoRow, { borderBottomColor: theme.border }]}
+            >
+              <Text style={[styles.infoKey, { color: theme.textSecondary }]}>
+                Topic Telemetry
+              </Text>
+              <Text
+                style={[
+                  styles.infoVal,
+                  TABULAR_NUMS,
+                  { color: theme.textSecondary }
+                ]}
+              >
+                {connMeta.telemetryTopic}
+              </Text>
+            </View>
+
+            <View
+              style={[styles.infoRow, { borderBottomColor: 'transparent' }]}
+            >
+              <Text style={[styles.infoKey, { color: theme.textSecondary }]}>
+                Topic Command
+              </Text>
+              <Text
+                style={[
+                  styles.infoVal,
+                  TABULAR_NUMS,
+                  { color: theme.textSecondary }
+                ]}
+              >
+                {connMeta.commandTopic}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* GROUP 4: SƠ ĐỒ CHÂN VIETDUINO ESP32 */}
+      <View style={styles.groupSection}>
+        <Text style={[styles.groupEyebrow, { color: theme.textSecondary }]}>
+          Sơ đồ chân phần cứng Vietduino ESP32
+        </Text>
+
+        <View
+          style={[
+            styles.card,
+            CARD_SHADOW,
+            { backgroundColor: theme.bgCard, borderColor: theme.border }
+          ]}
+        >
+          <View style={styles.pinList}>
+            {PINOUT_SUMMARY.map((row) => (
+              <View
+                key={row.device}
+                style={[
+                  styles.pinRow,
+                  { backgroundColor: theme.bgElevated }
+                ]}
+              >
+                <Text
+                  style={[styles.pinDevice, { color: theme.textPrimary }]}
+                >
+                  {row.device}
+                </Text>
+                <Text
+                  style={[
+                    styles.pinCode,
+                    TABULAR_NUMS,
+                    { color: theme.oliveGreen }
+                  ]}
+                >
+                  {row.pin}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      </View>
+
+      {/* GROUP 5: QUẢN TRỊ DỮ LIỆU & XUẤT BÁO CÁO */}
+      <View style={styles.groupSection}>
+        <Text style={[styles.groupEyebrow, { color: theme.textSecondary }]}>
+          Quản trị dữ liệu &amp; Xuất báo cáo
+        </Text>
+
+        <View
+          style={[
+            styles.card,
+            CARD_SHADOW,
+            { backgroundColor: theme.bgCard, borderColor: theme.border }
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
+            Báo cáo CSV &amp; Nhật ký hoạt động
+          </Text>
+          <Text style={[styles.cardSub, { color: theme.textSecondary }]}>
+            Tải về toàn bộ lịch sử đo đạc định dạng Excel (.CSV UTF-8) hoặc đặt lại bộ đếm sự kiện.
+          </Text>
+
+          <View style={styles.dataBtnRow}>
+            <TouchableOpacity
+              onPress={handleDownloadCsv}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel="Tải báo cáo CSV"
+              style={[
+                styles.csvBtn,
+                { backgroundColor: theme.oliveGreen }
+              ]}
+            >
+              <Text style={styles.csvBtnText}>Tải báo cáo (.CSV)</Text>
+            </TouchableOpacity>
+
+            {onRequestClearLogs ? (
+              <TouchableOpacity
+                onPress={onRequestClearLogs}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Đặt lại nhật ký"
+                style={[
+                  styles.resetLogsBtn,
+                  { backgroundColor: theme.dangerSoft }
+                ]}
+              >
+                <Text
+                  style={[styles.resetLogsBtnText, { color: theme.danger }]}
+                >
+                  Đặt lại nhật ký
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       </View>
     </View>
@@ -225,21 +481,95 @@ function SettingsTab({
 
 const styles = StyleSheet.create({
   stack: {
-    gap: 12
+    gap: 16
+  },
+  groupSection: {
+    gap: 8
+  },
+  groupEyebrow: {
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 4
   },
   card: {
-    borderRadius: 18,
+    borderRadius: 24,
     borderWidth: 1,
-    padding: 14,
+    padding: 18,
     gap: 12
   },
-  cardTitle: {
+  bannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  cpuIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  cpuIconText: {
     fontSize: 15,
     fontWeight: '800'
   },
+  bannerTitleWrap: {
+    flex: 1,
+    minWidth: 0
+  },
+  bannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2
+  },
+  bannerSub: {
+    fontSize: 11.5,
+    marginTop: 2
+  },
+  onlineBannerPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999
+  },
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5
+  },
+  onlineBannerText: {
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    gap: 12
+  },
+  settingTextBlock: {
+    flex: 1,
+    gap: 2
+  },
+  settingTitle: {
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  settingSub: {
+    fontSize: 12,
+    lineHeight: 17
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '600'
+  },
   cardSub: {
     fontSize: 12,
-    lineHeight: 18
+    lineHeight: 17
   },
   inputRow: {
     flexDirection: 'row',
@@ -247,15 +577,15 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    minHeight: 46,
+    minHeight: 44,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 12,
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '600'
   },
   saveBtn: {
-    minHeight: 46,
+    minHeight: 44,
     minWidth: 92,
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -263,8 +593,9 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   saveBtnText: {
-    fontSize: 13,
-    fontWeight: '800'
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#FAFCF9'
   },
   presetRow: {
     flexDirection: 'row',
@@ -272,16 +603,16 @@ const styles = StyleSheet.create({
     gap: 6
   },
   presetChip: {
-    minHeight: 36,
+    minHeight: 34,
     paddingHorizontal: 11,
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
     justifyContent: 'center'
   },
   presetText: {
     fontSize: 11,
-    fontWeight: '700'
+    fontWeight: '600'
   },
   infoList: {
     gap: 2
@@ -296,40 +627,20 @@ const styles = StyleSheet.create({
   },
   infoKey: {
     fontSize: 12,
-    fontWeight: '600'
+    fontWeight: '500'
   },
   infoVal: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     flexShrink: 1,
     textAlign: 'right'
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    gap: 12
-  },
-  switchTextBlock: {
-    flex: 1,
-    gap: 2
-  },
-  switchLabel: {
-    fontSize: 14,
-    fontWeight: '700'
-  },
-  switchSub: {
-    fontSize: 12,
-    lineHeight: 17
   },
   pinList: {
     gap: 6
   },
   pinRow: {
-    borderRadius: 10,
-    paddingHorizontal: 11,
+    borderRadius: 12,
+    paddingHorizontal: 12,
     paddingVertical: 9,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -338,14 +649,42 @@ const styles = StyleSheet.create({
   },
   pinDevice: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
     flex: 1
   },
   pinCode: {
     fontSize: 11,
-    fontWeight: '800'
+    fontWeight: '700'
+  },
+  dataBtnRow: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  csvBtn: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12
+  },
+  csvBtnText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#FAFCF9'
+  },
+  resetLogsBtn: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12
+  },
+  resetLogsBtnText: {
+    fontSize: 12.5,
+    fontWeight: '600'
   }
 });
 
 export default memo(SettingsTab);
-

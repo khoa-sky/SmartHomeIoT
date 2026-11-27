@@ -1,7 +1,6 @@
 // =========================================================================
 // [MẢNG 4 - MOBILE REACT NATIVE] Kết nối REST API & SignalR với Backend C#
-// Lưu ý: Trên điện thoại thật, "localhost" chính là chiếc điện thoại,
-// nên cần điền IP Wi-Fi LAN của máy tính chạy Backend C# (ví dụ: 192.168.1.31)
+// Đồng bộ 100% hợp đồng API với 3-frontend-react/src/services/apiClient.js
 // =========================================================================
 
 export const DEFAULT_SERVER_IP = '192.168.1.31';
@@ -32,6 +31,10 @@ export function buildSignalRUrl(serverIp = DEFAULT_SERVER_IP) {
   return `${buildBaseUrl(serverIp)}/hubs/smarthome`;
 }
 
+export function getMobileExportCsvUrl(serverIp = DEFAULT_SERVER_IP) {
+  return `${buildBaseUrl(serverIp)}/api/analytics/export-csv`;
+}
+
 async function fetchJsonWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -52,13 +55,17 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEO
 
     if (!res.ok) {
       const msg = data?.error || data?.message || `HTTP ${res.status}`;
-      throw new Error(msg);
+      const error = new Error(msg);
+      error.status = res.status;
+      throw error;
     }
 
     return data;
   } catch (err) {
     if (err?.name === 'AbortError') {
-      throw new Error('Quá thời gian phản hồi từ Server C# (5s). Hãy kiểm tra IP LAN và tường lửa cổng 5000.');
+      throw new Error(
+        'Quá thời gian phản hồi từ Server C# (5s). Hãy kiểm tra IP LAN và tường lửa cổng 5000.'
+      );
     }
     throw err;
   } finally {
@@ -67,7 +74,11 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEO
 }
 
 export async function fetchServerRootInfo(serverIp) {
-  return fetchJsonWithTimeout(`${buildBaseUrl(serverIp)}/`);
+  try {
+    return await fetchJsonWithTimeout(`${buildBaseUrl(serverIp)}/`);
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchMobileDeviceStatus(serverIp) {
@@ -95,11 +106,16 @@ export async function fetchMobileAnalyticsSummary(serverIp) {
   return fetchJsonWithTimeout(`${buildBaseUrl(serverIp)}/api/analytics/summary`);
 }
 
-export async function fetchMobileSensorHistory(serverIp, limit = 24) {
+export async function fetchMobileSensorHistory(serverIp, limit = 30) {
   return fetchJsonWithTimeout(`${buildBaseUrl(serverIp)}/api/analytics/history?limit=${limit}`);
 }
 
-export async function fetchMobileEventLogs(serverIp, category = 'ALL', limit = 60, keyword = '') {
+export async function fetchMobileEventLogs(
+  serverIp,
+  category = 'ALL',
+  limit = 100,
+  keyword = ''
+) {
   const params = new URLSearchParams({
     category: category || 'ALL',
     limit: String(limit)
@@ -107,11 +123,24 @@ export async function fetchMobileEventLogs(serverIp, category = 'ALL', limit = 6
   if (keyword && keyword.trim()) {
     params.set('keyword', keyword.trim());
   }
-  return fetchJsonWithTimeout(`${buildBaseUrl(serverIp)}/api/analytics/logs?${params.toString()}`);
+  return fetchJsonWithTimeout(
+    `${buildBaseUrl(serverIp)}/api/analytics/logs?${params.toString()}`
+  );
 }
 
+/**
+ * Thử gọi DELETE /api/analytics/logs nếu Backend hỗ trợ;
+ * nếu Backend trên nhánh master chưa mở endpoint DELETE (trả 404/405),
+ * trả về { supported: false } để giao diện đặt lại danh sách hiển thị trên phiên Mobile mà không báo lỗi.
+ */
 export async function clearMobileEventLogs(serverIp) {
-  return fetchJsonWithTimeout(`${buildBaseUrl(serverIp)}/api/analytics/logs`, {
-    method: 'DELETE'
-  });
+  try {
+    const data = await fetchJsonWithTimeout(
+      `${buildBaseUrl(serverIp)}/api/analytics/logs`,
+      { method: 'DELETE' }
+    );
+    return { supported: true, ...(data || {}) };
+  } catch {
+    return { supported: false };
+  }
 }

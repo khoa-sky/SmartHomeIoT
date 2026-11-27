@@ -1,187 +1,245 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { TABULAR_NUMS } from '../theme/tokens';
+import { CARD_SHADOW, TABULAR_NUMS } from '../theme/tokens';
 
-function getTempMeta(temp, theme) {
-  if (temp < 26) return { label: 'Mát mẻ', color: theme.info, bg: theme.infoSoft };
-  if (temp <= 33) return { label: 'Bình thường', color: theme.success, bg: theme.successSoft };
-  return { label: 'Nóng bức', color: theme.warning, bg: theme.warningSoft };
+/**
+ * Compute real delta between current reading and oldest sample in real history.
+ * Returns null if fewer than 2 real history points exist (no fake delta!).
+ */
+function getRealDelta(currentValue, history, key) {
+  if (!Array.isArray(history) || history.length < 2) return null;
+  const first = Number(history[0]?.[key]);
+  const current = Number(currentValue);
+  if (!Number.isFinite(first) || !Number.isFinite(current)) return null;
+  const diff = current - first;
+  if (Math.abs(diff) < 0.05) return 'Ổn định';
+  const sign = diff > 0 ? '+' : '';
+  return `${sign}${key === 'temp' ? diff.toFixed(1) : diff.toFixed(0)} so với đầu phiên`;
 }
 
-function getHumMeta(hum, theme) {
-  if (hum < 45) return { label: 'Khô hanh', color: theme.warning, bg: theme.warningSoft };
-  if (hum <= 75) return { label: 'Lý tưởng', color: theme.success, bg: theme.successSoft };
-  return { label: 'Ẩm ướt', color: theme.info, bg: theme.infoSoft };
-}
-
-function getSoilMeta(soil, theme) {
-  if (soil < 30) return { label: 'Khô • Cần tưới', color: theme.warning, bg: theme.warningSoft };
-  if (soil < 40) return { label: 'Chờ ngấm', color: theme.accentStrong, bg: theme.accentSoft };
-  return { label: 'Đủ ẩm', color: theme.success, bg: theme.successSoft };
-}
-
-function SensorOverviewGrid({ theme, telemetry }) {
-  const temp = Number(telemetry.temp ?? 0);
-  const hum = Number(telemetry.hum ?? 0);
-  const soil = Math.max(0, Math.min(100, Number(telemetry.soil ?? 0)));
-  const flame = Number(telemetry.flame ?? 0);
-
-  const tempMeta = getTempMeta(temp, theme);
-  const humMeta = getHumMeta(hum, theme);
-  const soilMeta = getSoilMeta(soil, theme);
-  const humPercent = Math.max(0, Math.min(100, hum));
+export const SensorSummaryCard = memo(function SensorSummaryCard({
+  theme,
+  label,
+  value,
+  decimals = 0,
+  unit = '',
+  textValue = null,
+  statusText,
+  statusTone,
+  deltaText = null,
+  isAlert = false
+}) {
+  const hasNumeric =
+    value !== null && value !== undefined && Number.isFinite(Number(value));
 
   return (
-    <View style={styles.grid}>
-      {/* 1. Nhiệt độ DHT20 */}
-      <View
-        style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
-        accessible
-        accessibilityLabel={`Nhiệt độ phòng ${temp.toFixed(1)} độ C, trạng thái ${tempMeta.label}`}
-      >
-        <View style={styles.cardTop}>
-          <Text style={[styles.label, { color: theme.textSecondary }]}>Nhiệt độ phòng</Text>
-          <View style={[styles.tag, { backgroundColor: tempMeta.bg }]}>
-            <Text style={[styles.tagText, { color: tempMeta.color }]}>{tempMeta.label}</Text>
-          </View>
-        </View>
-        <Text style={[styles.value, TABULAR_NUMS, { color: theme.textPrimary }]}>
-          {temp.toFixed(1)}
-          <Text style={[styles.unit, { color: theme.textSecondary }]}> °C</Text>
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${
+        textValue || (hasNumeric ? `${Number(value).toFixed(decimals)} ${unit}` : 'Chờ dữ liệu')
+      }. ${statusText}`}
+      style={[
+        styles.card,
+        CARD_SHADOW,
+        {
+          backgroundColor: isAlert ? theme.dangerSoft : theme.bgCard,
+          borderColor: isAlert ? theme.danger : theme.border
+        }
+      ]}
+    >
+      {/* Top Small Parameter Name + Real Delta Pill */}
+      <View style={styles.cardTop}>
+        <Text
+          style={[styles.label, { color: theme.textSecondary }]}
+          numberOfLines={1}
+        >
+          {label}
         </Text>
-        <Text style={[styles.caption, { color: theme.textMuted }]}>Cảm biến DHT20 (I2C)</Text>
-      </View>
-
-      {/* 2. Độ ẩm không khí DHT20 */}
-      <View
-        style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
-        accessible
-        accessibilityLabel={`Độ ẩm không khí ${hum.toFixed(0)} phần trăm, trạng thái ${humMeta.label}`}
-      >
-        <View style={styles.cardTop}>
-          <Text style={[styles.label, { color: theme.textSecondary }]}>Độ ẩm không khí</Text>
-          <View style={[styles.tag, { backgroundColor: humMeta.bg }]}>
-            <Text style={[styles.tagText, { color: humMeta.color }]}>{humMeta.label}</Text>
-          </View>
-        </View>
-        <Text style={[styles.value, TABULAR_NUMS, { color: theme.textPrimary }]}>
-          {hum.toFixed(0)}
-          <Text style={[styles.unit, { color: theme.textSecondary }]}> %</Text>
-        </Text>
-        <View style={[styles.track, { backgroundColor: theme.bgElevated }]}>
+        {deltaText ? (
           <View
             style={[
-              styles.fill,
-              { width: `${humPercent}%`, backgroundColor: humMeta.color }
+              styles.deltaPill,
+              { backgroundColor: theme.softGreen }
             ]}
-          />
-        </View>
-      </View>
-
-      {/* 3. Độ ẩm đất LM393 */}
-      <View
-        style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}
-        accessible
-        accessibilityLabel={`Độ ẩm đất vườn ${soil} phần trăm, ${soilMeta.label}`}
-      >
-        <View style={styles.cardTop}>
-          <Text style={[styles.label, { color: theme.textSecondary }]}>Độ ẩm đất vườn</Text>
-          <View style={[styles.tag, { backgroundColor: soilMeta.bg }]}>
-            <Text style={[styles.tagText, { color: soilMeta.color }]}>{soilMeta.label}</Text>
-          </View>
-        </View>
-        <Text style={[styles.value, TABULAR_NUMS, { color: theme.textPrimary }]}>
-          {soil}
-          <Text style={[styles.unit, { color: theme.textSecondary }]}> %</Text>
-        </Text>
-        <View style={[styles.track, { backgroundColor: theme.bgElevated }]}>
-          <View
-            style={[
-              styles.fill,
-              { width: `${soil}%`, backgroundColor: soilMeta.color }
-            ]}
-          />
-        </View>
-        <Text style={[styles.caption, TABULAR_NUMS, { color: theme.textMuted }]}>
-          Ngưỡng tưới &lt;30% • Đủ ≥40%
-        </Text>
-      </View>
-
-      {/* 4. An ninh (Lửa + Mưa + PIR) */}
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: telemetry.fireAlert ? theme.dangerSoft : theme.bgCard,
-            borderColor: telemetry.fireAlert ? theme.danger : theme.border
-          }
-        ]}
-        accessible
-        accessibilityLabel={`An ninh và thời tiết: ${
-          telemetry.fireAlert ? 'Cảnh báo cháy' : `Lửa ADC ${flame}`
-        }, ${telemetry.rain ? 'Đang mưa' : 'Khô ráo'}, ${
-          telemetry.pir ? 'Có chuyển động' : 'Không có người'
-        }`}
-      >
-        <View style={styles.cardTop}>
-          <Text style={[styles.label, { color: theme.textSecondary }]}>An ninh &amp; Thời tiết</Text>
-        </View>
-
-        <View style={styles.securityList}>
-          <View style={styles.securityRow}>
-            <View
-              style={[
-                styles.smallDot,
-                { backgroundColor: telemetry.fireAlert ? theme.danger : theme.success }
-              ]}
-            />
+          >
             <Text
               style={[
-                styles.securityText,
+                styles.deltaText,
                 TABULAR_NUMS,
-                { color: telemetry.fireAlert ? theme.danger : theme.textPrimary }
+                { color: theme.oliveGreen }
               ]}
               numberOfLines={1}
             >
-              {telemetry.fireAlert ? `BÁO CHÁY (${flame})` : `Lửa an toàn (${flame})`}
+              {deltaText}
             </Text>
           </View>
-
-          <View style={styles.securityRow}>
-            <View
-              style={[
-                styles.smallDot,
-                { backgroundColor: telemetry.rain ? theme.info : theme.accentStrong }
-              ]}
-            />
-            <Text style={[styles.securityText, { color: theme.textPrimary }]} numberOfLines={1}>
-              {telemetry.rain ? 'Trời đang có mưa' : 'Trời khô ráo'}
-            </Text>
-          </View>
-
-          <View style={styles.securityRow}>
-            <View
-              style={[
-                styles.smallDot,
-                {
-                  backgroundColor: telemetry.pirLocked
-                    ? theme.textMuted
-                    : telemetry.pir
-                    ? theme.accent
-                    : theme.border
-                }
-              ]}
-            />
-            <Text style={[styles.securityText, { color: theme.textSecondary }]} numberOfLines={1}>
-              {telemetry.pirLocked
-                ? 'PIR đang khóa'
-                : telemetry.pir
-                ? 'PIR: Có người'
-                : 'PIR: Yên tĩnh'}
-            </Text>
-          </View>
-        </View>
+        ) : null}
       </View>
+
+      {/* Main Value + Unit */}
+      <View style={styles.valueRow}>
+        {textValue ? (
+          <Text
+            style={[
+              styles.textValue,
+              { color: isAlert ? theme.danger : theme.textPrimary }
+            ]}
+            numberOfLines={1}
+          >
+            {textValue}
+          </Text>
+        ) : (
+          <View style={styles.numericWrap}>
+            <Text
+              style={[
+                styles.numericValue,
+                TABULAR_NUMS,
+                { color: theme.textPrimary }
+              ]}
+            >
+              {hasNumeric ? Number(value).toFixed(decimals) : '—'}
+            </Text>
+            {unit ? (
+              <Text style={[styles.unit, { color: theme.textSecondary }]}>
+                {unit}
+              </Text>
+            ) : null}
+          </View>
+        )}
+      </View>
+
+      {/* Bottom Threshold / Status */}
+      <Text
+        style={[
+          styles.statusText,
+          { color: statusTone || theme.textSecondary }
+        ]}
+        numberOfLines={1}
+      >
+        {statusText}
+      </Text>
+    </View>
+  );
+});
+
+function SensorOverviewGrid({ theme, telemetry, history = [] }) {
+  const hasTemp =
+    telemetry.temp !== null &&
+    telemetry.temp !== undefined &&
+    Number.isFinite(Number(telemetry.temp));
+  const hasHum =
+    telemetry.hum !== null &&
+    telemetry.hum !== undefined &&
+    Number.isFinite(Number(telemetry.hum));
+  const hasSoil =
+    telemetry.soil !== null &&
+    telemetry.soil !== undefined &&
+    Number.isFinite(Number(telemetry.soil));
+
+  const tempVal = hasTemp ? Number(telemetry.temp) : NaN;
+  const humVal = hasHum ? Number(telemetry.hum) : NaN;
+  const soilVal = hasSoil ? Number(telemetry.soil) : NaN;
+  const isFire = Boolean(telemetry.fireAlert);
+  const isRaining = Boolean(telemetry.rain);
+
+  const tempStatus = !hasTemp
+    ? 'Chờ dữ liệu cảm biến DHT20'
+    : tempVal > 33
+    ? 'Khá ấm • Ngưỡng 24–32°C'
+    : 'Thoải mái • Cảm biến DHT20';
+
+  const humStatus = !hasHum
+    ? 'Chờ dữ liệu cảm biến DHT20'
+    : humVal < 45
+    ? 'Hơi khô • Ngưỡng 45–75%'
+    : humVal <= 75
+    ? 'Độ ẩm tối ưu • Ngưỡng 45–75%'
+    : 'Độ ẩm cao • Ngưỡng 45–75%';
+
+  const soilStatus = !hasSoil
+    ? 'Chờ dữ liệu cảm biến LM393'
+    : soilVal < 30
+    ? 'Đất khô — Tự động tưới (< 30%)'
+    : soilVal < 40
+    ? 'Đang ngấm nước (30–40%)'
+    : 'Đủ ẩm tối ưu (≥ 40%)';
+
+  const safetyValue = isFire
+    ? 'Báo cháy!'
+    : isRaining
+    ? 'Trời mưa'
+    : 'An toàn';
+
+  const safetyStatus = isFire
+    ? `Phát hiện lửa ADC ${telemetry.flame ?? '—'} (< 15)`
+    : isRaining
+    ? `Mưa IO23 • Giàn phơi ${telemetry.servoAngle ?? 165}°`
+    : `${
+        telemetry.pirLocked
+          ? 'PIR đã khóa'
+          : telemetry.pir
+          ? 'PIR có người'
+          : 'PIR trực canh'
+      } • Lửa ADC ${telemetry.flame ?? '—'}`;
+
+  return (
+    <View style={styles.grid}>
+      <SensorSummaryCard
+        theme={theme}
+        label="Nhiệt độ phòng"
+        value={hasTemp ? tempVal : null}
+        decimals={1}
+        unit="°C"
+        statusText={tempStatus}
+        statusTone={
+          hasTemp && tempVal > 33 ? theme.warning : theme.textSecondary
+        }
+        deltaText={getRealDelta(tempVal, history, 'temp')}
+      />
+
+      <SensorSummaryCard
+        theme={theme}
+        label="Độ ẩm không khí"
+        value={hasHum ? humVal : null}
+        decimals={0}
+        unit="%"
+        statusText={humStatus}
+        statusTone={theme.textSecondary}
+        deltaText={getRealDelta(humVal, history, 'hum')}
+      />
+
+      <SensorSummaryCard
+        theme={theme}
+        label="Độ ẩm đất vườn"
+        value={hasSoil ? soilVal : null}
+        decimals={0}
+        unit="%"
+        statusText={soilStatus}
+        statusTone={
+          !hasSoil
+            ? theme.textSecondary
+            : soilVal < 30
+            ? theme.warning
+            : theme.oliveGreen
+        }
+        deltaText={getRealDelta(soilVal, history, 'soil')}
+      />
+
+      <SensorSummaryCard
+        theme={theme}
+        label="An ninh & Thời tiết"
+        textValue={safetyValue}
+        statusText={safetyStatus}
+        statusTone={
+          isFire
+            ? theme.danger
+            : isRaining
+            ? theme.warning
+            : theme.oliveGreen
+        }
+        deltaText={telemetry.online ? 'ESP32 Online' : 'Chờ MQTT'}
+        isAlert={isFire}
+      />
     </View>
   );
 }
@@ -191,77 +249,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 10
+    rowGap: 12
   },
   card: {
-    width: '48.6%',
-    borderRadius: 16,
+    width: '48.4%',
+    minHeight: 112,
+    borderRadius: 20,
     borderWidth: 1,
-    padding: 13,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    justifyContent: 'space-between',
     gap: 8
   },
   cardTop: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 4
+    justifyContent: 'space-between',
+    gap: 6
   },
   label: {
     fontSize: 12,
-    fontWeight: '600'
+    fontWeight: '500',
+    flex: 1
   },
-  tag: {
+  deltaPill: {
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999
   },
-  tagText: {
-    fontSize: 10,
-    fontWeight: '700'
+  deltaText: {
+    fontSize: 9.5,
+    fontWeight: '600'
   },
-  value: {
-    fontSize: 27,
-    fontWeight: '800',
+  valueRow: {
+    marginVertical: 2
+  },
+  numericWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3
+  },
+  numericValue: {
+    fontSize: 28,
+    fontWeight: '600',
     letterSpacing: -0.6
   },
   unit: {
-    fontSize: 15,
-    fontWeight: '600'
-  },
-  track: {
-    height: 6,
-    borderRadius: 999,
-    overflow: 'hidden'
-  },
-  fill: {
-    height: '100%',
-    borderRadius: 999
-  },
-  caption: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '500'
   },
-  securityList: {
-    gap: 6,
-    marginTop: 2
-  },
-  securityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7
-  },
-  smallDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4
-  },
-  securityText: {
-    fontSize: 12,
+  textValue: {
+    fontSize: 23,
     fontWeight: '600',
-    flex: 1
+    letterSpacing: -0.4
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '500'
   }
 });
 
 export default memo(SensorOverviewGrid);
-
