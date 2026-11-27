@@ -2,24 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+  --bg-main: #F6F5F0;
+  --bg-sidebar: #FBFAF6;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F1EFE8;
+  --bg-subtle: #F7F6F2;
+  --text-primary: #20211E;
+  --text-secondary: #85867F;
+  --text-muted: #A3A39C;
+  --border-color: #EAE9E2;
+  --accent: #C5B56B;
+  --accent-strong: #9E8E46;
+  --accent-soft: rgba(197, 181, 107, 0.16);
+  --success: #78977C;
+  --success-soft: rgba(120, 151, 124, 0.14);
+  --warning: #D69C52;
+  --warning-soft: rgba(214, 156, 82, 0.14);
+  --danger: #C96D67;
+  --danger-soft: rgba(201, 109, 103, 0.14);
+  --card-shadow: 0 1px 3px rgba(32, 33, 30, 0.03), 0 4px 12px rgba(32, 33, 30, 0.02);
+}
+
+html.dark {
+  color-scheme: dark;
+  --bg-main: #151613;
+  --bg-sidebar: #10110F;
+  --bg-card: #1D1F1B;
+  --bg-elevated: #242620;
+  --bg-subtle: #181A16;
+  --text-primary: #F3F2EA;
+  --text-secondary: #A1A197;
+  --text-muted: #72736A;
+  --border-color: #303129;
+  --accent: #D4C47B;
+  --accent-strong: #E2D48E;
+  --accent-soft: rgba(212, 196, 123, 0.15);
+  --success: #91B69A;
+  --success-soft: rgba(145, 182, 154, 0.15);
+  --warning: #D8A65D;
+  --warning-soft: rgba(216, 166, 93, 0.15);
+  --danger: #D77C75;
+  --danger-soft: rgba(215, 124, 117, 0.16);
+  --card-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+}
+
 @layer base {
   html {
-    color-scheme: dark;
+    font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
   }
 
-  button,
-  a {
-    touch-action: manipulation;
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    transition: background-color 200ms ease, color 200ms ease;
+    overflow-x: hidden;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */
+.aura-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+  transition: background-color 200ms ease, border-color 200ms ease, transform 180ms ease;
+}
+
+.aura-subcard {
+  background-color: var(--bg-elevated);
+  border-radius: 12px;
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
-  *::before,
-  *::after {
+  ::before,
+  ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

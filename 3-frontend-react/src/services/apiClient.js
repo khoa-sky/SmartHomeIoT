@@ -1,7 +1,10 @@
-import * as signalR from '@microsoft/signalr';
-
-// Tự động nhận diện địa chỉ Backend C# (cổng 5000) kể cả khi mở trên Laptop hay Điện thoại trong cùng Wi-Fi
+// Kết nối đồng bộ với Backend C# qua Vite Reverse Proxy (cổng 5173/5174..., không lo lỗi CORS)
+// Nếu chạy bản build độc lập ngoài Vite dev server thì tự động fallback sang cổng 5000 của Server C#
 const getBackendBaseUrl = () => {
+  if (typeof window === 'undefined') return 'http://localhost:5000';
+  if (import.meta.env.DEV || window.location.port === '5173' || window.location.port === '5174') {
+    return ''; // Dùng đường dẫn tương đối đi qua Vite Proxy (/api & /hubs)
+  }
   const host = window.location.hostname || 'localhost';
   return `http://${host}:5000`;
 };
@@ -9,58 +12,78 @@ const getBackendBaseUrl = () => {
 export const API_BASE_URL = getBackendBaseUrl();
 export const SIGNALR_HUB_URL = `${API_BASE_URL}/hubs/smarthome`;
 
-// Tên sự kiện SignalR theo docs/MQTT_API_CONTRACT.md
-export const HUB_EVENTS = {
-  TELEMETRY: 'ReceiveTelemetry',
-  EVENT_LOG: 'NewEventLog'
-};
+export function getLanDirectBackendUrl() {
+  const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
+  return `http://${host}:5000`;
+}
 
-async function requestJson(path, options) {
-  const res = await fetch(`${API_BASE_URL}${path}`, options);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} khi gọi ${path}`);
+export async function fetchServerRootInfo() {
+  try {
+    const host = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
+    const res = await fetch(`http://${host}:5000/`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
   }
+}
+
+export async function fetchDeviceStatus() {
+  const res = await fetch(`${API_BASE_URL}/api/device/status`);
+  if (!res.ok) throw new Error('Không thể tải trạng thái thiết bị');
   return res.json();
 }
 
-/**
- * Tạo kết nối SignalR tới Hub /hubs/smarthome.
- * Tự kết nối lại theo các mốc 0s, 2s, 5s, 10s rồi cứ 10s một lần.
- */
-export function createHubConnection() {
-  return new signalR.HubConnectionBuilder()
-    .withUrl(SIGNALR_HUB_URL)
-    .withAutomaticReconnect({
-      nextRetryDelayInMilliseconds: (ctx) => [0, 2000, 5000, 10000][ctx.previousRetryCount] ?? 10000
-    })
-    .configureLogging(signalR.LogLevel.Warning)
-    .build();
+export async function fetchConnectionInfo() {
+  const res = await fetch(`${API_BASE_URL}/api/device/connection`);
+  if (!res.ok) throw new Error('Không thể tải trạng thái kết nối MQTT');
+  return res.json();
 }
 
-export function fetchDeviceStatus() {
-  return requestJson('/api/device/status');
-}
-
-export function sendDeviceCommand(cmd, value) {
-  return requestJson('/api/device/command', {
+export async function sendDeviceCommand(cmd, value) {
+  const res = await fetch(`${API_BASE_URL}/api/device/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ cmd, value })
   });
+  const data = await res.json();
+  if (!res.ok || data.success === false) {
+    throw new Error(data.error || 'Gửi lệnh điều khiển thất bại');
+  }
+  return data;
 }
 
-export function fetchAnalyticsSummary() {
-  return requestJson('/api/analytics/summary');
+export async function fetchAnalyticsSummary() {
+  const res = await fetch(`${API_BASE_URL}/api/analytics/summary`);
+  if (!res.ok) throw new Error('Không thể tải thống kê KPI');
+  return res.json();
 }
 
-export function fetchSensorHistory(limit = 30) {
-  return requestJson(`/api/analytics/history?limit=${limit}`);
+export async function fetchSensorHistory(limit = 30) {
+  const res = await fetch(`${API_BASE_URL}/api/analytics/history?limit=${limit}`);
+  if (!res.ok) throw new Error('Không thể tải lịch sử cảm biến');
+  return res.json();
 }
 
-export function fetchEventLogs(category = 'ALL', limit = 100) {
-  return requestJson(
-    `/api/analytics/logs?category=${encodeURIComponent(category)}&limit=${limit}`
-  );
+export async function fetchEventLogs(category = 'ALL', limit = 100, keyword = '') {
+  const params = new URLSearchParams({
+    category,
+    limit: String(limit)
+  });
+  if (keyword && keyword.trim()) {
+    params.set('keyword', keyword.trim());
+  }
+  const res = await fetch(`${API_BASE_URL}/api/analytics/logs?${params.toString()}`);
+  if (!res.ok) throw new Error('Không thể tải nhật ký sự kiện');
+  return res.json();
+}
+
+export async function clearEventLogs() {
+  const res = await fetch(`${API_BASE_URL}/api/analytics/logs`, {
+    method: 'DELETE'
+  });
+  if (!res.ok) throw new Error('Không thể xóa nhật ký sự kiện');
+  return res.json();
 }
 
 export function getExportCsvUrl() {
