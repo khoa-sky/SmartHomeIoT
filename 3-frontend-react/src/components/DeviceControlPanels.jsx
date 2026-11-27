@@ -1,33 +1,57 @@
 import React, { memo } from 'react';
 import {
-  Lightbulb,
   Lock,
   Unlock,
-  Sun,
-  CloudRain,
-  Sprout,
   Droplets,
-  ShieldCheck,
-  ShieldAlert,
+  RotateCcw,
   Bell,
   BellOff,
   Volume2,
-  VolumeX,
-  Power,
-  RotateCcw,
-  Activity
+  VolumeX
 } from 'lucide-react';
 
+/**
+ * Reusable Apple/Scandinavian SmartToggle Component
+ */
+export const SmartToggle = memo(function SmartToggle({
+  checked,
+  disabled = false,
+  onChange,
+  ariaLabel
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={onChange}
+      style={{
+        backgroundColor: checked ? 'var(--olive-green)' : 'var(--soft-green)',
+        borderColor: checked ? 'var(--olive-green)' : 'var(--border-color)'
+      }}
+      className="relative w-12 h-7 rounded-full border p-0.5 flex items-center transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#394438] disabled:opacity-60 shrink-0"
+    >
+      <span
+        style={{
+          backgroundColor: '#FAFCF9',
+          transform: checked ? 'translateX(20px)' : 'translateX(0px)'
+        }}
+        className="w-5 h-5 rounded-full shadow-md transition-transform duration-300 ease-out"
+      />
+    </button>
+  );
+});
+
 // ============================================================================
-// 1. LIVING ROOM SMART LIGHTING & PIR MOTION (IO32 & IO27)
-//    Includes Luxury Smart Toggle Switch + Warm Champagne Lamp SVG Illustration
+// 1. 3D MATTE PENDANT LAMP CARD (CHIẾU SÁNG PHÒNG KHÁCH IO32 & PIR IO27)
 // ============================================================================
 export const LightingControlCard = memo(function LightingControlCard({
   telemetry,
   pendingCmd,
   onCommand
 }) {
-  // Visual state reflects ONLY confirmed device telemetry
   const isLightOn = Boolean(telemetry.lightOn);
   const isPirLocked = Boolean(telemetry.pirLocked);
   const hasMotion = Boolean(telemetry.pir);
@@ -35,263 +59,162 @@ export const LightingControlCard = memo(function LightingControlCard({
   const isPirBusy =
     pendingCmd === 'PIR_LOCK:LOCK' || pendingCmd === 'PIR_LOCK:UNLOCK';
 
-  function handleSmartToggle() {
-    if (isLightBusy) return;
-    if (isLightOn) {
-      onCommand(
-        'LIGHT',
-        'OFF',
-        'Đã gửi lệnh tắt đèn phòng khách (khóa tạm PIR 5s)'
-      );
-    } else {
-      onCommand('LIGHT', 'ON', 'Đã gửi lệnh bật đèn phòng khách');
-    }
-  }
-
   return (
-    <article className="aura-card aura-card-interactive p-6 sm:p-7 flex flex-col justify-between space-y-5">
-      {/* Header + Luxury Smart Toggle Switch */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div
-            style={{
-              backgroundColor: isLightOn
-                ? 'var(--accent-soft)'
-                : 'var(--bg-elevated)',
-              color: isLightOn
-                ? 'var(--champagne-gold)'
-                : 'var(--text-secondary)'
-            }}
-            className="w-11 h-11 rounded-[15px] flex items-center justify-center transition-colors duration-300"
+    <article className="aura-card aura-card-interactive p-5 flex flex-col justify-between space-y-4">
+      {/* Top Header + SmartToggle */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3
+            style={{ color: 'var(--text-primary)' }}
+            className="text-[15px] font-semibold leading-tight"
           >
-            <Lightbulb className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
-          </div>
-          <div>
-            <h2
-              style={{ color: 'var(--text-primary)' }}
-              className="text-[17px] font-semibold leading-snug"
-            >
-              Chiếu sáng phòng khách
-            </h2>
-            <p
-              translate="no"
-              style={{ color: 'var(--text-secondary)' }}
-              className="text-[12px]"
-            >
-              Đèn LED MKE-M01 (IO32) • Cảm biến PIR (IO27)
-            </p>
-          </div>
-        </div>
-
-        {/* Apple-Home-style Smart Toggle Switch */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={isLightOn}
-          aria-label={
-            isLightOn ? 'Tắt đèn phòng khách' : 'Bật đèn phòng khách'
-          }
-          disabled={isLightBusy}
-          onClick={handleSmartToggle}
-          style={{
-            backgroundColor: isLightOn
-              ? 'var(--champagne-gold)'
-              : 'var(--bg-elevated)',
-            borderColor: isLightOn
-              ? 'var(--champagne-gold)'
-              : 'var(--border-color)'
-          }}
-          className="relative w-14 h-8 rounded-full border p-1 flex items-center transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
-        >
-          <span
-            style={{
-              backgroundColor: isLightOn ? '#20251F' : 'var(--bg-card)',
-              transform: isLightOn ? 'translateX(24px)' : 'translateX(0px)'
-            }}
-            className="w-6 h-6 rounded-full shadow-md transition-transform duration-300 ease-out"
-          />
-        </button>
-      </div>
-
-      {/* Architectural Pendant Lamp & Living Room Illumination Visual */}
-      <div className="aura-subcard p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-        <div className="sm:col-span-5 flex items-center justify-center">
-          <svg
-            width="136"
-            height="86"
-            viewBox="0 0 136 86"
-            role="img"
-            aria-label={
-              isLightOn
-                ? 'Đèn phòng khách đang phát sáng vàng ấm'
-                : 'Đèn phòng khách đang tắt'
-            }
-          >
-            <defs>
-              <radialGradient id="auraWarmLampGlow" cx="50%" cy="55%" r="50%">
-                <stop offset="0%" stopColor="#C5AB6B" stopOpacity="0.55" />
-                <stop offset="65%" stopColor="#C5AB6B" stopOpacity="0.16" />
-                <stop offset="100%" stopColor="#C5AB6B" stopOpacity="0.0" />
-              </radialGradient>
-            </defs>
-
-            {/* Warm Champagne Halo when confirmed ON */}
-            {isLightOn ? (
-              <ellipse
-                cx="68"
-                cy="54"
-                rx="54"
-                ry="30"
-                fill="url(#auraWarmLampGlow)"
-              />
-            ) : null}
-
-            {/* Ceiling Mount & Cord */}
-            <rect
-              x="56"
-              y="4"
-              width="24"
-              height="4"
-              rx="2"
-              fill="currentColor"
-              style={{ color: 'var(--text-secondary)' }}
-            />
-            <line
-              x1="68"
-              y1="8"
-              x2="68"
-              y2="28"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              style={{ color: 'var(--text-secondary)' }}
-            />
-
-            {/* Designer Dome Pendant Shade */}
-            <path
-              d="M42 42 C42 26, 94 26, 94 42 Z"
-              fill={isLightOn ? '#C5AB6B' : 'currentColor'}
-              style={{
-                color: isLightOn ? '#C5AB6B' : 'var(--text-secondary)',
-                transition: 'fill 280ms ease'
-              }}
-            />
-
-            {/* Warm Bulb Filament Core */}
-            <circle
-              cx="68"
-              cy="44"
-              r="5"
-              fill={isLightOn ? '#FFF6D6' : '#7D827A'}
-            />
-
-            {/* Minimalist Living Table Silhouette Below */}
-            <rect
-              x="38"
-              y="72"
-              width="60"
-              height="4"
-              rx="2"
-              fill="currentColor"
-              style={{ color: 'var(--border-color)' }}
-            />
-          </svg>
-        </div>
-
-        <div className="sm:col-span-7 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-              Trạng thái đèn hiện tại
-            </span>
-            <span
-              style={{
-                backgroundColor: isLightOn
-                  ? 'var(--accent-soft)'
-                  : 'var(--bg-card)',
-                color: isLightOn
-                  ? 'var(--text-primary)'
-                  : 'var(--text-secondary)'
-              }}
-              className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
-            >
-              {isLightOn ? 'Đang sáng ấm (ON)' : 'Đang tắt (OFF)'}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-              Cảm biến chuyển động PIR
-            </span>
-            <span
-              style={{
-                color: isPirLocked
-                  ? 'var(--warning)'
-                  : hasMotion
-                  ? 'var(--champagne-gold)'
-                  : 'var(--smart-green)'
-              }}
-              className="text-[12px] font-semibold"
-            >
-              {isPirLocked
-                ? 'Đã khóa (Chế độ ngủ)'
-                : hasMotion
-                ? 'Phát hiện có người'
-                : 'Tự bật khi có người'}
-            </span>
-          </div>
-
-          <p style={{ color: 'var(--text-muted)' }} className="text-[11px] pt-0.5">
-            Đồng bộ tức thì 2 chiều với nút bấm vật lý IO25 trên mạch ESP32.
+            Chiếu sáng phòng khách
+          </h3>
+          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px] mt-0.5">
+            {isLightOn ? 'Đang bật sáng • IO32' : 'Đang tắt • IO32'}
           </p>
         </div>
+
+        <SmartToggle
+          checked={isLightOn}
+          disabled={isLightBusy}
+          ariaLabel={isLightOn ? 'Tắt đèn phòng khách' : 'Bật đèn phòng khách'}
+          onChange={() =>
+            onCommand(
+              'LIGHT',
+              isLightOn ? 'OFF' : 'ON',
+              isLightOn
+                ? 'Đã gửi lệnh tắt đèn phòng khách (khóa tạm PIR 5s)'
+                : 'Đã gửi lệnh bật đèn phòng khách'
+            )
+          }
+        />
       </div>
 
-      {/* Explicit Action Buttons + PIR Lock Control */}
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            disabled={pendingCmd === 'LIGHT:ON'}
-            onClick={() =>
-              onCommand('LIGHT', 'ON', 'Đã gửi lệnh bật đèn phòng khách')
-            }
-            style={{
-              backgroundColor: isLightOn
-                ? 'var(--olive-green)'
-                : 'var(--bg-elevated)',
-              color: isLightOn ? '#FFFFFF' : 'var(--text-primary)'
-            }}
-            className="py-3 px-4 aura-btn text-[13px] font-semibold flex items-center justify-center gap-2 hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
-          >
-            <Power className="w-3.5 h-3.5" strokeWidth={1.8} aria-hidden="true" />
-            <span>Bật đèn</span>
-          </button>
+      {/* Studio 3D Matte Clay Pendant Lamp Render SVG */}
+      <div className="aura-subcard py-3 px-4 flex items-center justify-center relative overflow-hidden h-[138px]">
+        <svg
+          width="160"
+          height="124"
+          viewBox="0 0 160 124"
+          role="img"
+          aria-label={
+            isLightOn
+              ? 'Mô hình 3D đèn treo phòng khách đang tỏa ánh sáng vàng ấm'
+              : 'Mô hình 3D đèn treo phòng khách màu trắng kem'
+          }
+        >
+          <defs>
+            {/* 3D Matte Clay Dome Gradient */}
+            <linearGradient id="clayLampShade" x1="0.15" y1="0.1" x2="0.85" y2="0.9">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="55%" stopColor="#F1EFE8" />
+              <stop offset="100%" stopColor="#D7D9D2" />
+            </linearGradient>
+            <linearGradient id="clayLampInner" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor={isLightOn ? '#F5C97B' : '#CFD4CC'}
+              />
+              <stop
+                offset="100%"
+                stopColor={isLightOn ? '#FFF3D1' : '#E3E7E0'}
+              />
+            </linearGradient>
+            <radialGradient id="warm3DBulbHalo" cx="50%" cy="55%" r="52%">
+              <stop offset="0%" stopColor="#F2C166" stopOpacity="0.68" />
+              <stop offset="55%" stopColor="#F2C166" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#F2C166" stopOpacity="0.0" />
+            </radialGradient>
+          </defs>
 
-          <button
-            type="button"
-            disabled={pendingCmd === 'LIGHT:OFF'}
-            onClick={() =>
-              onCommand(
-                'LIGHT',
-                'OFF',
-                'Đã gửi lệnh tắt đèn phòng khách (khóa tạm PIR 5s)'
-              )
-            }
-            style={{
-              backgroundColor: !isLightOn
-                ? 'var(--text-primary)'
-                : 'var(--bg-elevated)',
-              color: !isLightOn ? 'var(--bg-card)' : 'var(--text-primary)'
-            }}
-            className="py-3 px-4 aura-btn text-[13px] font-semibold flex items-center justify-center gap-2 hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
-          >
-            <Power className="w-3.5 h-3.5" strokeWidth={1.8} aria-hidden="true" />
-            <span>Tắt đèn (Khóa PIR 5s)</span>
-          </button>
-        </div>
+          {/* Soft Studio Contact Shadow on Floor */}
+          <ellipse
+            cx="80"
+            cy="112"
+            rx={isLightOn ? '46' : '34'}
+            ry="6"
+            fill={isLightOn ? '#E3B664' : '#343E33'}
+            fillOpacity={isLightOn ? '0.28' : '0.10'}
+          />
 
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <span style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-            Chế độ khóa cảm biến PIR ban đêm (kêu còi Bíp)
+          {/* Warm Light Cone & Halo (Only when confirmed lightOn === true) */}
+          {isLightOn ? (
+            <>
+              <polygon
+                points="44,62 116,62 138,112 22,112"
+                fill="url(#warm3DBulbHalo)"
+              />
+              <circle
+                cx="80"
+                cy="70"
+                r="38"
+                fill="url(#warm3DBulbHalo)"
+              />
+            </>
+          ) : null}
+
+          {/* 3D Matte Ceiling Canopy & Cord */}
+          <ellipse cx="80" cy="10" rx="14" ry="4" fill="#D5DAD2" />
+          <line
+            x1="80"
+            y1="14"
+            x2="80"
+            y2="32"
+            stroke="#929B90"
+            strokeWidth="2"
+          />
+
+          {/* Top Brass/Olive Finial Cap */}
+          <rect
+            x="74"
+            y="28"
+            width="12"
+            height="8"
+            rx="4"
+            fill="#394438"
+          />
+
+          {/* 3D Sculpted Matte Dome Shade */}
+          <path
+            d="M36 60 C36 33, 124 33, 124 60 Z"
+            fill="url(#clayLampShade)"
+          />
+          {/* Underside 3D Rim of Lamp */}
+          <ellipse
+            cx="80"
+            cy="60"
+            rx="44"
+            ry="8"
+            fill="url(#clayLampInner)"
+          />
+
+          {/* 3D Frosted Glass Bulb Sphere */}
+          <circle
+            cx="80"
+            cy="64"
+            r="10"
+            fill={isLightOn ? '#FFF7DC' : '#E5EBE4'}
+          />
+          <circle
+            cx="77"
+            cy="61"
+            r="3"
+            fill="#FFFFFF"
+            fillOpacity="0.85"
+          />
+        </svg>
+      </div>
+
+      {/* Bottom PIR Sync & Quick Action Row */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-[11px]">
+          <span style={{ color: 'var(--text-secondary)' }}>
+            {isPirLocked
+              ? 'PIR: Đã khóa (Chế độ ngủ)'
+              : hasMotion
+              ? 'PIR: Đang có người'
+              : 'PIR: Tự động (IO27)'}
           </span>
           <button
             type="button"
@@ -302,25 +225,25 @@ export const LightingControlCard = memo(function LightingControlCard({
                 isPirLocked ? 'UNLOCK' : 'LOCK',
                 isPirLocked
                   ? 'Đã mở khóa cảm biến chuyển động PIR'
-                  : 'Đã khóa cảm biến PIR (chế độ đi ngủ)'
+                  : 'Đã khóa cảm biến PIR (Chế độ ngủ)'
               )
             }
             style={{
               backgroundColor: isPirLocked
                 ? 'var(--warning-soft)'
-                : 'var(--bg-elevated)',
-              color: isPirLocked ? 'var(--warning)' : 'var(--text-primary)'
+                : 'var(--soft-green)',
+              color: isPirLocked ? 'var(--warning)' : 'var(--olive-green)'
             }}
-            className="px-4 py-2.5 aura-btn text-[12px] font-semibold flex items-center gap-1.5 shrink-0 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
+            className="px-2.5 py-1 rounded-[10px] font-semibold flex items-center gap-1 aura-btn"
           >
             {isPirLocked ? (
               <>
-                <Unlock className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden="true" />
-                <span>Mở lại PIR</span>
+                <Unlock className="w-3 h-3" strokeWidth={1.8} aria-hidden="true" />
+                <span>Mở PIR</span>
               </>
             ) : (
               <>
-                <Lock className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden="true" />
+                <Lock className="w-3 h-3" strokeWidth={1.8} aria-hidden="true" />
                 <span>Khóa PIR</span>
               </>
             )}
@@ -332,9 +255,109 @@ export const LightingControlCard = memo(function LightingControlCard({
 });
 
 // ============================================================================
-// 2. SMART CLOTHESLINE (GIÀN PHƠI QUẦN ÁO SERVO IO33 & CẢM BIẾN MƯA IO23)
-//    Includes Animated Awning SVG + Rain Drops + Luxury Segmented Control
+// 2. 3D MATTE CLOTHESLINE CARD (GIÀN PHƠI QUẦN ÁO SERVO IO33 & MƯA IO23)
 // ============================================================================
+export const ClotheslineAnimation = memo(function ClotheslineAnimation({
+  isRetracted,
+  isRaining
+}) {
+  return (
+    <svg
+      width="172"
+      height="124"
+      viewBox="0 0 172 124"
+      role="img"
+      aria-label={
+        isRetracted
+          ? 'Mô hình 3D giàn phơi đã thu quần áo vào dưới mái hiên'
+          : 'Mô hình 3D giàn phơi đang đưa quần áo ra ngoài đón nắng'
+      }
+    >
+      <defs>
+        <linearGradient id="clayWall3D" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="100%" stopColor="#DCE2DA" />
+        </linearGradient>
+        <linearGradient id="clayGarmentCream" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#FAFCF9" />
+          <stop offset="100%" stopColor="#DFDDD4" />
+        </linearGradient>
+        <linearGradient id="clayGarmentSage" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#C5CEC2" />
+          <stop offset="100%" stopColor="#929B90" />
+        </linearGradient>
+      </defs>
+
+      {/* Studio Floor Shadow */}
+      <ellipse
+        cx="86"
+        cy="112"
+        rx="58"
+        ry="6"
+        fill="#343E33"
+        fillOpacity="0.10"
+      />
+
+      {/* 3D Isometric Architectural Shelter Pillar & Canopy */}
+      <rect
+        x="18"
+        y="22"
+        width="18"
+        height="86"
+        rx="6"
+        fill="url(#clayWall3D)"
+      />
+      <path
+        d="M14 18 H84 L74 32 H14 Z"
+        fill="#394438"
+      />
+
+      {/* 3D Telescopic Matte Aluminum Rail */}
+      <rect
+        x="32"
+        y="42"
+        width={isRetracted ? '42' : '112'}
+        height="5"
+        rx="2.5"
+        fill="#929B90"
+        style={{ transition: 'width 360ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+      />
+
+      {/* 3D Neutral-Toned Garments Sliding on Rail */}
+      <g
+        style={{
+          transform: isRetracted ? 'translateX(0px)' : 'translateX(54px)',
+          transition: 'transform 360ms cubic-bezier(0.22, 1, 0.36, 1)'
+        }}
+      >
+        {/* Garment 1: Cream Linen Shirt */}
+        <circle cx="48" cy="44" r="3" fill="#394438" />
+        <path
+          d="M38 52 C38 49, 58 49, 58 52 L61 84 C61 87, 35 87, 35 84 Z"
+          fill="url(#clayGarmentCream)"
+        />
+        {/* Garment 2: Soft Sage Knit */}
+        <circle cx="66" cy="44" r="3" fill="#394438" />
+        <path
+          d="M57 52 C57 49, 75 49, 75 52 L77 80 C77 83, 55 83, 55 80 Z"
+          fill="url(#clayGarmentSage)"
+        />
+      </g>
+
+      {/* Rain Animation or Warm Studio Sun Sphere */}
+      {isRaining ? (
+        <g stroke="#72A765" strokeWidth="1.8" strokeLinecap="round">
+          <line x1="112" y1="20" x2="107" y2="32" className="aura-rain-drop" />
+          <line x1="130" y1="26" x2="125" y2="38" className="aura-rain-drop" />
+          <line x1="146" y1="18" x2="141" y2="30" className="aura-rain-drop" />
+        </g>
+      ) : (
+        <circle cx="138" cy="26" r="10" fill="#E6B86A" fillOpacity="0.55" />
+      )}
+    </svg>
+  );
+});
+
 export const ClotheslineControlCard = memo(function ClotheslineControlCard({
   telemetry,
   pendingCmd,
@@ -344,247 +367,185 @@ export const ClotheslineControlCard = memo(function ClotheslineControlCard({
   const isRetracted = angle > 90;
   const mode = telemetry.servoMode || 'AUTO';
   const isRaining = Boolean(telemetry.rain);
-  const isMoving =
-    pendingCmd === 'SERVO:AUTO' ||
-    pendingCmd === 'SERVO:OUT' ||
-    pendingCmd === 'SERVO:IN';
 
-  const SEGMENTS = [
+  const MODES = [
     {
       id: 'AUTO',
-      label: 'Tự động (Auto)',
+      label: 'Auto',
       toast: 'Đã bật chế độ giàn phơi tự động theo mưa'
     },
     {
       id: 'OUT',
-      label: 'Đưa ra (15°)',
+      label: 'Đưa ra 15°',
       toast: 'Đã điều khiển đưa giàn phơi ra ngoài (15°)'
     },
     {
       id: 'IN',
-      label: 'Thu vào (165°)',
+      label: 'Thu vào 165°',
       toast: 'Đã điều khiển thu giàn phơi vào mái hiên (165°)'
     }
   ];
 
   return (
-    <article className="aura-card aura-card-interactive p-6 sm:p-7 flex flex-col justify-between space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3.5">
-          <div
-            style={{
-              backgroundColor: isRaining
-                ? 'var(--warning-soft)'
-                : 'var(--accent-soft)',
-              color: isRaining ? 'var(--warning)' : 'var(--champagne-gold)'
-            }}
-            className="w-11 h-11 rounded-[15px] flex items-center justify-center transition-colors duration-300"
+    <article className="aura-card aura-card-interactive p-5 flex flex-col justify-between space-y-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3
+            style={{ color: 'var(--text-primary)' }}
+            className="text-[15px] font-semibold leading-tight"
           >
-            {isRaining ? (
-              <CloudRain className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
-            ) : (
-              <Sun className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
-            )}
-          </div>
-          <div>
-            <h2
-              style={{ color: 'var(--text-primary)' }}
-              className="text-[17px] font-semibold leading-snug"
-            >
-              Giàn phơi quần áo thông minh
-            </h2>
-            <p
-              translate="no"
-              style={{ color: 'var(--text-secondary)' }}
-              className="text-[12px]"
-            >
-              Servo SG90 (IO33) • Cảm biến mưa HS0217V (IO23)
-            </p>
-          </div>
+            Giàn phơi quần áo
+          </h3>
+          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px] mt-0.5">
+            Góc {angle}° • {isRaining ? 'Phát hiện mưa' : 'Trời khô ráo'}
+          </p>
         </div>
 
         <span
           style={{
-            backgroundColor: 'var(--bg-elevated)',
-            color: 'var(--text-primary)'
+            backgroundColor: 'var(--soft-green)',
+            color: 'var(--olive-green)'
           }}
-          className="px-3 py-1.5 rounded-[10px] text-[12px] font-semibold tabular-nums shrink-0"
+          className="px-2.5 py-1 rounded-full text-[11px] font-semibold tabular-nums"
         >
-          Góc {angle}° • {mode}
+          {mode}
         </span>
       </div>
 
-      {/* Animated Architectural Awning & Clothesline SVG with Rain Effect */}
-      <div className="aura-subcard p-4 sm:p-5 flex items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
-            Vị trí thanh phơi thực tế
-          </p>
-          <p
-            style={{ color: 'var(--text-primary)' }}
-            className="text-[15px] font-semibold"
-          >
-            {isRetracted
-              ? 'Đã thu vào dưới mái hiên (165°)'
-              : 'Đang đưa ra đón nắng (15°)'}
-          </p>
-          <p style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-            Xung Servo:{' '}
-            <span
-              style={{ color: 'var(--smart-green)' }}
-              className="font-semibold"
-            >
-              {isMoving ? 'Đang quay…' : 'Ổn định (Tự ngắt PWM)'}
-            </span>
-          </p>
-        </div>
-
-        <svg
-          width="136"
-          height="68"
-          viewBox="0 0 136 68"
-          className="shrink-0"
-          role="img"
-          aria-label={
-            isRetracted
-              ? 'Minh họa giàn phơi thu vào dưới mái hiên'
-              : 'Minh họa giàn phơi vươn ra ngoài trời'
-          }
-        >
-          {/* Architectural Roof / Awning */}
-          <path
-            d="M8 14 H62 L52 26 H8 Z"
-            fill="#596B52"
-            fillOpacity="0.85"
-          />
-          <line
-            x1="12"
-            y1="14"
-            x2="12"
-            y2="58"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            style={{ color: 'var(--text-secondary)' }}
-          />
-
-          {/* Smooth Animated Telescopic Clothesline Rail */}
-          <line
-            x1="14"
-            y1="34"
-            x2={isRetracted ? '46' : '112'}
-            y2="34"
-            stroke="#C5AB6B"
-            strokeWidth="3"
-            strokeLinecap="round"
-            style={{ transition: 'all 340ms cubic-bezier(0.22, 1, 0.36, 1)' }}
-          />
-
-          {/* Garment Hangers Moving Along Rail */}
-          <g
-            style={{
-              transform: isRetracted ? 'translateX(0px)' : 'translateX(44px)',
-              transition: 'transform 340ms cubic-bezier(0.22, 1, 0.36, 1)'
-            }}
-          >
-            <circle cx="28" cy="34" r="3" fill="#596B52" />
-            <path
-              d="M23 46 L28 37 L33 46 Z"
-              fill="#789681"
-              fillOpacity="0.7"
-            />
-            <circle cx="42" cy="34" r="3" fill="#596B52" />
-            <path
-              d="M37 46 L42 37 L47 46 Z"
-              fill="#C5AB6B"
-              fillOpacity="0.75"
-            />
-          </g>
-
-          {/* Subtle Rain Drops When Rain Sensor is Active */}
-          {isRaining ? (
-            <g stroke="#789681" strokeWidth="1.5" strokeLinecap="round">
-              <line
-                x1="78"
-                y1="14"
-                x2="74"
-                y2="24"
-                className="aura-rain-drop"
-              />
-              <line
-                x1="96"
-                y1="18"
-                x2="92"
-                y2="28"
-                className="aura-rain-drop"
-              />
-              <line
-                x1="114"
-                y1="12"
-                x2="110"
-                y2="22"
-                className="aura-rain-drop"
-              />
-            </g>
-          ) : (
-            <circle
-              cx="114"
-              cy="16"
-              r="7"
-              fill="#C5AB6B"
-              fillOpacity="0.45"
-            />
-          )}
-        </svg>
+      {/* 3D Matte Clothesline Render Container */}
+      <div className="aura-subcard py-3 px-4 flex items-center justify-center relative overflow-hidden h-[138px]">
+        <ClotheslineAnimation isRetracted={isRetracted} isRaining={isRaining} />
       </div>
 
-      {/* Apple-Style Segmented Control for AUTO / OUT / IN */}
-      <div className="space-y-2.5">
-        <div
-          role="group"
-          aria-label="Chế độ vận hành giàn phơi"
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            borderColor: 'var(--border-subtle)'
-          }}
-          className="p-1.5 rounded-[16px] border grid grid-cols-3 gap-1.5"
-        >
-          {SEGMENTS.map((seg) => {
-            const active = mode === seg.id;
-            return (
-              <button
-                key={seg.id}
-                type="button"
-                disabled={pendingCmd === `SERVO:${seg.id}`}
-                onClick={() => onCommand('SERVO', seg.id, seg.toast)}
-                style={{
-                  backgroundColor: active
-                    ? 'var(--olive-green)'
-                    : 'transparent',
-                  color: active ? '#FFFFFF' : 'var(--text-primary)'
-                }}
-                className={`py-2.5 px-3 rounded-[12px] text-[12px] aura-btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] ${
-                  active ? 'font-semibold shadow-sm' : 'font-medium hover:opacity-85'
-                }`}
-              >
-                {seg.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <p style={{ color: 'var(--text-muted)' }} className="text-[11px]">
-          Chế độ Tự động: mưa liên tục 0.6s tự thu vào 165° • khô ráo sau 2.0s tự đưa ra 15°.
-        </p>
+      {/* Segmented Control: Auto / Out / In */}
+      <div
+        role="group"
+        aria-label="Điều khiển chế độ giàn phơi"
+        style={{ backgroundColor: 'var(--soft-green)' }}
+        className="p-1 rounded-[13px] grid grid-cols-3 gap-1"
+      >
+        {MODES.map((m) => {
+          const active = mode === m.id;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              disabled={pendingCmd === `SERVO:${m.id}`}
+              onClick={() => onCommand('SERVO', m.id, m.toast)}
+              style={{
+                backgroundColor: active ? 'var(--olive-green)' : 'transparent',
+                color: active ? '#FAFCF9' : 'var(--text-primary)'
+              }}
+              className="py-1.5 px-2 rounded-[10px] text-[11px] font-semibold transition-colors"
+            >
+              {m.label}
+            </button>
+          );
+        })}
       </div>
     </article>
   );
 });
 
 // ============================================================================
-// 3. SMART GARDEN & PUMP PROTECTION (RELAY IO26 & ĐỘ ẨM ĐẤT IO35)
-//    Includes Minimalist Garden Illustration + Water Stream Animation when Pump On
+// 3. 3D MATTE BOTANICAL PLANTER & IRRIGATION CARD (MÁY BƠM IO26 & ĐẤT IO35)
 // ============================================================================
+export const IrrigationAnimation = memo(function IrrigationAnimation({
+  isPumpOn,
+  isPumpLocked
+}) {
+  return (
+    <svg
+      width="160"
+      height="124"
+      viewBox="0 0 160 124"
+      role="img"
+      aria-label={
+        isPumpOn
+          ? 'Mô hình 3D chậu cây đang được vòi nước tưới ẩm'
+          : 'Mô hình 3D chậu cây matte ceramic'
+      }
+    >
+      <defs>
+        <linearGradient id="clayPlanterPot" x1="0.1" y1="0" x2="0.9" y2="1">
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="60%" stopColor="#EAE8E0" />
+          <stop offset="100%" stopColor="#CFCBC0" />
+        </linearGradient>
+        <linearGradient id="clayLeafOlive" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#72A765" />
+          <stop offset="100%" stopColor="#394438" />
+        </linearGradient>
+      </defs>
+
+      {/* Studio Floor Contact Shadow */}
+      <ellipse
+        cx="84"
+        cy="112"
+        rx="44"
+        ry="6"
+        fill="#343E33"
+        fillOpacity="0.12"
+      />
+
+      {/* 3D Matte Brass/Olive Overhead Irrigation Nozzle */}
+      <path
+        d="M22 20 H58 C64 20, 66 24, 66 30"
+        fill="none"
+        stroke="#394438"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <rect x="61" y="29" width="10" height="5" rx="2" fill="#929B90" />
+
+      {/* Animated Water Streams (Only when confirmed pumpOn === true) */}
+      {isPumpOn ? (
+        <g
+          stroke="#72A765"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          className="aura-water-stream"
+        >
+          <line x1="66" y1="36" x2="76" y2="72" />
+          <line x1="63" y1="36" x2="66" y2="72" />
+          <line x1="69" y1="36" x2="88" y2="72" />
+        </g>
+      ) : null}
+
+      {/* 3D Sculpted Botanical Foliage */}
+      <path
+        d="M84 74 V42"
+        stroke="#394438"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M84 60 C84 46, 62 42, 58 51 C58 61, 72 64, 84 60 Z"
+        fill="url(#clayLeafOlive)"
+      />
+      <path
+        d="M84 52 C84 38, 108 34, 112 43 C112 53, 96 56, 84 52 Z"
+        fill="url(#clayLeafOlive)"
+      />
+      <circle cx="84" cy="38" r="9" fill="#72A765" />
+
+      {/* 3D Matte Ceramic Planter Bowl */}
+      <path
+        d="M54 72 H114 L106 106 C105 109, 101 111, 97 111 H71 C67 111, 63 109, 62 106 Z"
+        fill="url(#clayPlanterPot)"
+      />
+      <ellipse
+        cx="84"
+        cy="72"
+        rx="30"
+        ry="5"
+        fill={isPumpLocked ? '#C85C5C' : '#394438'}
+        fillOpacity="0.75"
+      />
+    </svg>
+  );
+});
+
 export const GardenControlCard = memo(function GardenControlCard({
   telemetry,
   pendingCmd,
@@ -593,186 +554,46 @@ export const GardenControlCard = memo(function GardenControlCard({
   const isPumpOn = Boolean(telemetry.pumpOn);
   const isPumpLocked = Boolean(telemetry.pumpLocked);
   const pumpCount = Number(telemetry.pumpCount) || 0;
-  const soilVal =
-    telemetry.soil !== null && telemetry.soil !== undefined
-      ? Number(telemetry.soil)
-      : 0;
+  const soilVal = Number(telemetry.soil) || 0;
 
   return (
-    <article className="aura-card aura-card-interactive p-6 sm:p-7 flex flex-col justify-between space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3.5">
-          <div
-            style={{
-              backgroundColor: isPumpLocked
-                ? 'var(--danger-soft)'
-                : 'var(--success-soft)',
-              color: isPumpLocked ? 'var(--danger)' : 'var(--smart-green)'
-            }}
-            className="w-11 h-11 rounded-[15px] flex items-center justify-center transition-colors duration-300"
+    <article className="aura-card aura-card-interactive p-5 flex flex-col justify-between space-y-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3
+            style={{ color: 'var(--text-primary)' }}
+            className="text-[15px] font-semibold leading-tight"
           >
-            <Sprout className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
-          </div>
-          <div>
-            <h2
-              style={{ color: 'var(--text-primary)' }}
-              className="text-[17px] font-semibold leading-snug"
-            >
-              Tưới tiêu &amp; Bảo vệ máy bơm
-            </h2>
-            <p
-              translate="no"
-              style={{ color: 'var(--text-secondary)' }}
-              className="text-[12px]"
-            >
-              Relay MKE-M05 (IO26) • Độ ẩm đất LM393 (IO35)
-            </p>
-          </div>
+            Máy bơm tưới tiêu
+          </h3>
+          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px] mt-0.5">
+            Đất {soilVal}% • Chu kỳ {pumpCount}/5 đợt
+          </p>
         </div>
 
-        <span
-          style={{
-            backgroundColor: isPumpLocked
-              ? 'var(--danger-soft)'
-              : isPumpOn
-              ? 'var(--success-soft)'
-              : 'var(--bg-elevated)',
-            color: isPumpLocked
-              ? 'var(--danger)'
-              : isPumpOn
-              ? 'var(--olive-green)'
-              : 'var(--text-secondary)'
-          }}
-          className="px-3 py-1.5 rounded-[10px] text-[12px] font-semibold shrink-0"
-        >
-          {isPumpLocked
-            ? 'Đã khóa bảo vệ (5/5)'
-            : isPumpOn
-            ? 'Đang bơm tưới…'
-            : 'Máy bơm nghỉ'}
-        </span>
-      </div>
-
-      {/* Minimalist Botanical Garden Illustration + Water Flow Stream */}
-      <div className="aura-subcard p-4 sm:p-5 space-y-3.5">
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-1">
-            <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
-              Độ ẩm đất &amp; Chu kỳ tưới tự động
-            </p>
-            <p
-              style={{ color: 'var(--text-primary)' }}
-              className="text-[22px] font-semibold tabular-nums"
-            >
-              {soilVal}%{' '}
-              <span
-                style={{
-                  color:
-                    soilVal < 30 ? 'var(--warning)' : 'var(--smart-green)'
-                }}
-                className="text-[12px] font-semibold"
-              >
-                ({soilVal < 30 ? 'Đất khô < 30%' : 'Độ ẩm ổn định'})
-              </span>
-            </p>
-            <p style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-              Chu kỳ: <strong>2.5s bơm</strong> / 12s chờ ngấm nước
-            </p>
-          </div>
-
-          {/* Botanical Irrigation Nozzle & Plant SVG */}
-          <svg
-            width="116"
-            height="64"
-            viewBox="0 0 116 64"
-            className="shrink-0"
-            role="img"
-            aria-label={
+        <SmartToggle
+          checked={isPumpOn}
+          disabled={pendingCmd === 'PUMP:START' || pendingCmd === 'PUMP:STOP'}
+          ariaLabel={isPumpOn ? 'Dừng máy bơm' : 'Kích hoạt tưới 2.5s'}
+          onChange={() =>
+            onCommand(
+              'PUMP',
+              isPumpOn ? 'STOP' : 'START',
               isPumpOn
-                ? 'Minh họa vòi tưới đang phun dòng nước cho cây'
-                : 'Minh họa khu vườn đang ở trạng thái nghỉ'
-            }
-          >
-            {/* Irrigation Pipe & Nozzle */}
-            <path
-              d="M10 14 H44 V22"
-              fill="none"
-              stroke="#C5AB6B"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-            {/* Active Water Stream (Only when confirmed pumpOn === true) */}
-            {isPumpOn ? (
-              <g
-                stroke="#789681"
-                strokeWidth="2"
-                strokeLinecap="round"
-                className="aura-water-stream"
-              >
-                <line x1="44" y1="25" x2="62" y2="50" />
-                <line x1="40" y1="25" x2="50" y2="50" />
-                <line x1="48" y1="25" x2="74" y2="48" />
-              </g>
-            ) : null}
-
-            {/* Soil Mound & Botanical Leaves */}
-            <path
-              d="M52 56 C60 48, 86 48, 94 56 Z"
-              fill="#596B52"
-              fillOpacity="0.65"
-            />
-            <path
-              d="M73 50 V30"
-              stroke="#596B52"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-            />
-            <path
-              d="M73 38 C73 32, 62 28, 58 33 C58 39, 66 41, 73 38 Z"
-              fill="#789681"
-            />
-            <path
-              d="M73 33 C73 27, 84 23, 88 28 C88 34, 80 36, 73 33 Z"
-              fill="#596B52"
-            />
-          </svg>
-        </div>
-
-        {/* 5-Cycle Dry-Run Safety Counter */}
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between text-[11px]">
-            <span style={{ color: 'var(--text-secondary)' }}>
-              Cơ chế bảo vệ chống cháy bơm (khóa sau 5 đợt nếu đất chưa ẩm)
-            </span>
-            <span
-              style={{ color: 'var(--text-primary)' }}
-              className="font-semibold tabular-nums"
-            >
-              {pumpCount} / 5 đợt
-            </span>
-          </div>
-          <div className="grid grid-cols-5 gap-1.5">
-            {[1, 2, 3, 4, 5].map((step) => (
-              <div
-                key={step}
-                style={{
-                  backgroundColor:
-                    step <= pumpCount
-                      ? isPumpLocked
-                        ? 'var(--danger)'
-                        : 'var(--smart-green)'
-                      : 'var(--border-color)'
-                }}
-                className="h-1.5 rounded-full transition-colors duration-300"
-              />
-            ))}
-          </div>
-        </div>
+                ? 'Đã gửi lệnh dừng máy bơm'
+                : 'Đã kích hoạt máy bơm tưới ngay 1 đợt (2.5s)'
+            )
+          }
+        />
       </div>
 
-      {/* Pump Action Buttons */}
-      <div className="grid grid-cols-3 gap-2.5">
+      {/* 3D Matte Botanical Planter Container */}
+      <div className="aura-subcard py-3 px-4 flex items-center justify-center relative overflow-hidden h-[138px]">
+        <IrrigationAnimation isPumpOn={isPumpOn} isPumpLocked={isPumpLocked} />
+      </div>
+
+      {/* Bottom Controls */}
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           disabled={pendingCmd === 'PUMP:START'}
@@ -785,25 +606,12 @@ export const GardenControlCard = memo(function GardenControlCard({
           }
           style={{
             backgroundColor: 'var(--olive-green)',
-            color: '#FFFFFF'
+            color: '#FAFCF9'
           }}
-          className="py-3 px-3 aura-btn text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
+          className="py-2 px-3 rounded-[11px] text-[11px] font-semibold flex items-center justify-center gap-1.5 aura-btn"
         >
           <Droplets className="w-3.5 h-3.5" strokeWidth={1.8} aria-hidden="true" />
-          <span>Tưới ngay (2.5s)</span>
-        </button>
-
-        <button
-          type="button"
-          disabled={pendingCmd === 'PUMP:STOP'}
-          onClick={() => onCommand('PUMP', 'STOP', 'Đã gửi lệnh dừng máy bơm')}
-          style={{
-            backgroundColor: 'var(--bg-elevated)',
-            color: 'var(--text-primary)'
-          }}
-          className="py-3 px-3 aura-btn text-[12px] font-semibold hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
-        >
-          Dừng bơm
+          <span>Tưới 2.5s</span>
         </button>
 
         <button
@@ -819,13 +627,13 @@ export const GardenControlCard = memo(function GardenControlCard({
           style={{
             backgroundColor: isPumpLocked
               ? 'var(--warning-soft)'
-              : 'var(--bg-elevated)',
-            color: isPumpLocked ? 'var(--warning)' : 'var(--text-secondary)'
+              : 'var(--soft-green)',
+            color: isPumpLocked ? 'var(--warning)' : 'var(--olive-green)'
           }}
-          className="py-3 px-3 aura-btn text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
+          className="py-2 px-3 rounded-[11px] text-[11px] font-semibold flex items-center justify-center gap-1.5 aura-btn"
         >
           <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden="true" />
-          <span>Mở khóa</span>
+          <span>{isPumpLocked ? 'Mở khóa bơm' : 'Reset 0/5'}</span>
         </button>
       </div>
     </article>
@@ -833,8 +641,7 @@ export const GardenControlCard = memo(function GardenControlCard({
 });
 
 // ============================================================================
-// 4. SECURITY & EMERGENCY ALARM CENTER (CÒI IO19, 2 ĐÈN ĐỎ IO14 & LỬA IO34)
-//    Calm Olive Green when safe; Controlled Red Pulse when danger is confirmed
+// 4. 3D MATTE ARCHITECTURAL SECURITY SHIELD & HOME MODEL (IO34, IO19, IO14)
 // ============================================================================
 export const SecurityControlCard = memo(function SecurityControlCard({
   telemetry,
@@ -852,184 +659,160 @@ export const SecurityControlCard = memo(function SecurityControlCard({
       style={{
         borderColor: isFire ? 'var(--danger)' : 'var(--border-color)'
       }}
-      className={`aura-card aura-card-interactive p-6 sm:p-7 flex flex-col justify-between space-y-5 ${
+      className={`aura-card aura-card-interactive p-5 flex flex-col justify-between space-y-4 ${
         isFire ? 'aura-danger-pulse' : ''
       }`}
     >
-      {/* Header: Calm Olive when safe, Red only on confirmed alert */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3.5">
-          <div
-            style={{
-              backgroundColor: isAlertActive
-                ? 'var(--danger-soft)'
-                : 'var(--olive-soft)',
-              color: isAlertActive ? 'var(--danger)' : 'var(--olive-green)'
-            }}
-            className="w-11 h-11 rounded-[15px] flex items-center justify-center transition-colors duration-300"
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3
+            style={{ color: 'var(--text-primary)' }}
+            className="text-[15px] font-semibold leading-tight"
           >
-            {isAlertActive ? (
-              <ShieldAlert className="w-5 h-5" strokeWidth={1.8} aria-hidden="true" />
-            ) : (
-              <ShieldCheck className="w-5 h-5" strokeWidth={1.8} aria-hidden="true" />
-            )}
-          </div>
-          <div>
-            <h2
-              style={{ color: 'var(--text-primary)' }}
-              className="text-[17px] font-semibold leading-snug"
-            >
-              Trung tâm an ninh &amp; Báo động
-            </h2>
-            <p
-              translate="no"
-              style={{ color: 'var(--text-secondary)' }}
-              className="text-[12px]"
-            >
-              Còi Buzzer (IO19) • 2 Đèn Đỏ (IO14) • Lửa (IO34)
-            </p>
-          </div>
+            Hệ thống an ninh
+          </h3>
+          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px] mt-0.5">
+            Lửa ADC {telemetry.flame ?? '—'} • {isAlertActive ? 'Còi & Đèn BẬT' : 'Trực canh'}
+          </p>
         </div>
 
-        <span
+        <button
+          type="button"
+          onClick={onToggleSound}
+          title="Bật/tắt âm báo cháy trên trình duyệt"
           style={{
-            backgroundColor: isAlertActive
-              ? 'var(--danger-soft)'
-              : 'var(--olive-soft)',
-            color: isAlertActive ? 'var(--danger)' : 'var(--olive-green)'
+            backgroundColor: soundEnabled
+              ? 'var(--soft-green)'
+              : 'var(--bg-elevated)',
+            color: soundEnabled
+              ? 'var(--olive-green)'
+              : 'var(--text-secondary)'
           }}
-          className="px-3 py-1.5 rounded-[10px] text-[12px] font-semibold shrink-0"
+          className="p-2 rounded-[11px] aura-btn"
         >
-          {isFire
-            ? 'Báo cháy khẩn cấp!'
-            : isAlarmLedOn
-            ? 'Đèn cảnh báo đang nháy'
-            : 'An ninh ổn định'}
-        </span>
+          {soundEnabled ? (
+            <Volume2 className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
+          ) : (
+            <VolumeX className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
+          )}
+        </button>
       </div>
 
-      {/* 3-Channel Hardware Security Matrix */}
-      <div className="aura-subcard p-4 sm:p-5 grid grid-cols-3 gap-3">
-        <div>
-          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
-            Hồng ngoại lửa (IO34)
-          </p>
-          <p
-            style={{ color: isFire ? 'var(--danger)' : 'var(--text-primary)' }}
-            className="text-[14px] font-semibold tabular-nums mt-1"
-          >
-            ADC {telemetry.flame ?? '—'} (&lt; 15)
-          </p>
-        </div>
+      {/* 3D Matte Architectural Home & Security Shield Render */}
+      <div className="aura-subcard py-3 px-4 flex items-center justify-center relative overflow-hidden h-[138px]">
+        <svg
+          width="160"
+          height="124"
+          viewBox="0 0 160 124"
+          role="img"
+          aria-label={
+            isFire
+              ? 'Mô hình 3D khiên an ninh đang phát cảnh báo đỏ khẩn cấp'
+              : 'Mô hình 3D ngôi nhà và khiên bảo vệ an toàn'
+          }
+        >
+          <defs>
+            <linearGradient id="clayHomeBlock" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#DCDFD8" />
+            </linearGradient>
+            <linearGradient id="clayShield3D" x1="0" y1="0" x2="1" y2="1">
+              <stop
+                offset="0%"
+                stopColor={isAlertActive ? '#D96B6B' : '#72A765'}
+              />
+              <stop
+                offset="100%"
+                stopColor={isAlertActive ? '#B54848' : '#394438'}
+              />
+            </linearGradient>
+          </defs>
 
-        <div>
-          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
-            Còi Buzzer (IO19)
-          </p>
-          <p
-            style={{
-              color: isAlertActive ? 'var(--danger)' : 'var(--olive-green)'
-            }}
-            className="text-[14px] font-semibold mt-1"
-          >
-            {isAlertActive ? 'Đang phát còi' : 'Trực canh'}
-          </p>
-        </div>
+          {/* Studio Floor Shadow */}
+          <ellipse
+            cx="80"
+            cy="112"
+            rx="46"
+            ry="6"
+            fill={isAlertActive ? '#C85C5C' : '#343E33'}
+            fillOpacity={isAlertActive ? '0.24' : '0.12'}
+          />
 
-        <div>
-          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
-            Cụm 2 Đèn Đỏ (IO14)
-          </p>
-          <p
-            style={{
-              color: isAlarmLedOn ? 'var(--danger)' : 'var(--text-primary)'
-            }}
-            className="text-[14px] font-semibold mt-1"
-          >
-            {isAlarmLedOn ? 'Đang chớp đỏ' : 'Đang tắt'}
-          </p>
-        </div>
+          {/* 3D Miniature Architectural House Model */}
+          <path
+            d="M36 52 L72 26 L108 52 V98 H36 Z"
+            fill="url(#clayHomeBlock)"
+          />
+          <path
+            d="M32 54 L72 24 L112 54"
+            fill="none"
+            stroke="#394438"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <rect
+            x="58"
+            y="66"
+            width="28"
+            height="32"
+            rx="6"
+            fill="#E5EBE4"
+          />
+
+          {/* 3D Overlapping Matte Security Shield Badge */}
+          <path
+            d="M104 46 L128 54 V74 C128 90, 116 100, 104 105 C92 100, 80 90, 80 74 V54 Z"
+            fill="url(#clayShield3D)"
+          />
+          <path
+            d="M96 75 L102 81 L113 69"
+            fill="none"
+            stroke="#FAFCF9"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </div>
 
-      {/* Alarm Test Actions & Browser Siren Toggle */}
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            disabled={pendingCmd === 'ALARM_TEST:ON'}
-            onClick={() =>
-              onCommand(
-                'ALARM_TEST',
-                'ON',
-                'Đã kích hoạt kiểm tra còi và 2 đèn đỏ trong 2 giây'
-              )
-            }
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              color: 'var(--text-primary)'
-            }}
-            className="py-3 px-3.5 aura-btn text-[12px] font-semibold flex items-center justify-center gap-2 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
-          >
-            <Bell className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden="true" />
-            <span>Kiểm tra còi &amp; đèn (2s)</span>
-          </button>
+      {/* Bottom Alarm Test Controls */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          disabled={pendingCmd === 'ALARM_TEST:ON'}
+          onClick={() =>
+            onCommand(
+              'ALARM_TEST',
+              'ON',
+              'Đã kích hoạt kiểm tra còi và 2 đèn đỏ trong 2 giây'
+            )
+          }
+          style={{
+            backgroundColor: 'var(--olive-green)',
+            color: '#FAFCF9'
+          }}
+          className="py-2 px-2.5 rounded-[11px] text-[11px] font-semibold flex items-center justify-center gap-1.5 aura-btn"
+        >
+          <Bell className="w-3.5 h-3.5" strokeWidth={1.8} aria-hidden="true" />
+          <span>Test còi (2s)</span>
+        </button>
 
-          <button
-            type="button"
-            disabled={pendingCmd === 'ALARM_TEST:OFF'}
-            onClick={() =>
-              onCommand('ALARM_TEST', 'OFF', 'Đã tắt kiểm tra báo động')
-            }
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              color: 'var(--text-secondary)'
-            }}
-            className="py-3 px-3.5 aura-btn text-[12px] font-semibold flex items-center justify-center gap-2 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B] disabled:opacity-60"
-          >
-            <BellOff className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden="true" />
-            <span>Tắt kiểm tra</span>
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between pt-1">
-          <div className="flex items-center gap-2">
-            <Activity
-              className="w-3.5 h-3.5"
-              strokeWidth={1.75}
-              style={{ color: 'var(--text-secondary)' }}
-              aria-hidden="true"
-            />
-            <span style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-              Chuông báo cháy trên trình duyệt
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={onToggleSound}
-            style={{
-              backgroundColor: soundEnabled
-                ? 'var(--olive-soft)'
-                : 'var(--bg-elevated)',
-              color: soundEnabled
-                ? 'var(--olive-green)'
-                : 'var(--text-secondary)'
-            }}
-            className="px-3.5 py-2 aura-btn text-[12px] font-semibold flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5AB6B]"
-          >
-            {soundEnabled ? (
-              <>
-                <Volume2 className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden="true" />
-                <span>Đang bật loa</span>
-              </>
-            ) : (
-              <>
-                <VolumeX className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden="true" />
-                <span>Đã tắt loa</span>
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={pendingCmd === 'ALARM_TEST:OFF'}
+          onClick={() =>
+            onCommand('ALARM_TEST', 'OFF', 'Đã tắt kiểm tra báo động')
+          }
+          style={{
+            backgroundColor: 'var(--soft-green)',
+            color: 'var(--olive-green)'
+          }}
+          className="py-2 px-2.5 rounded-[11px] text-[11px] font-semibold flex items-center justify-center gap-1.5 aura-btn"
+        >
+          <BellOff className="w-3.5 h-3.5" strokeWidth={1.75} aria-hidden="true" />
+          <span>Tắt test</span>
+        </button>
       </div>
     </article>
   );

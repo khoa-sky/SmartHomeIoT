@@ -70,3 +70,4 @@ export default function AnimatedNumber({
   }
   return <span className={className}>{animated.toFixed(decimals)}</span>;
 }
+

@@ -13,8 +13,11 @@ import {
 } from './services/apiClient';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import HeroBanner from './components/HeroBanner';
 import SensorOverviewGrid from './components/SensorOverviewGrid';
+import LivingRoomCard from './components/LivingRoomCard';
+import AnalyticsCard from './components/AnalyticsCard';
+import CircularGauge from './components/CircularGauge';
+import SmartDeviceList from './components/SmartDeviceList';
 import {
   LightingControlCard,
   ClotheslineControlCard,
@@ -73,7 +76,7 @@ function playBrowserAlarmBeep() {
 }
 
 export default function App() {
-  // Quản lý Light / Dark Mode lưu trong localStorage (mặc định Light Mode theo Aura Home 2.0)
+  // Quản lý Light / Dark Mode lưu trong localStorage (mặc định Light Mode theo Aura Signature Edition)
   const [theme, setTheme] = useState(() => {
     try {
       const saved = window.localStorage.getItem('smarthome_theme');
@@ -92,7 +95,7 @@ export default function App() {
     }
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
-      metaTheme.setAttribute('content', theme === 'dark' ? '#141814' : '#F5F4EF');
+      metaTheme.setAttribute('content', theme === 'dark' ? '#1C221C' : '#F3F5F1');
     }
     try {
       window.localStorage.setItem('smarthome_theme', theme);
@@ -102,7 +105,6 @@ export default function App() {
   }, [theme]);
 
   const [activeNav, setActiveNav] = useState('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hubStatus, setHubStatus] = useState('connecting');
 
@@ -385,12 +387,10 @@ export default function App() {
       }}
       className="min-h-screen flex transition-colors duration-300"
     >
-      {/* SIDEBAR NAVIGATION */}
+      {/* COMPACT 88PX ICON SIDEBAR NAVIGATION */}
       <Sidebar
         activeNav={activeNav}
         onSelectNav={handleSelectNav}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         mobileOpen={mobileMenuOpen}
         onCloseMobile={() => setMobileMenuOpen(false)}
         online={telemetry.online}
@@ -413,106 +413,63 @@ export default function App() {
           onSelectNav={handleSelectNav}
         />
 
-        <main className="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+        <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 pb-10 space-y-4">
           {/* ================================================================
-              1. OVERVIEW DASHBOARD: HERO BANNER + BENTO SENSORS + 12-COL ASYMMETRIC BENTO CONTROLS
+              1. OVERVIEW DASHBOARD — REFERENCE 12-COLUMN ASYMMETRIC BENTO GRID
+                 - Top Row: 4 Clean SensorSummaryCards
+                 - Main 12-Col Bento Grid:
+                     * Left (5 cols): Scandinavian LivingRoomCard + Sage AnalyticsCard
+                     * Center (4 cols): 270° CircularGauge (Soil Moisture & Pump)
+                     * Right (3 cols): SmartDeviceList ("Smart Devices" + "View all devices")
+                 - Bottom Row: 4 Studio 3D Matte Clay Device Visual Cards
               ================================================================ */}
           {activeNav === 'overview' ? (
-            <div className="space-y-6 aura-page-enter">
-              <HeroBanner
-                telemetry={telemetry}
-                theme={theme}
-                onSelectNav={handleSelectNav}
-              />
-
+            <div className="space-y-4 aura-page-enter">
+              {/* Row 1: 4 Sensor Summary Cards */}
               <SensorOverviewGrid telemetry={telemetry} history={history} />
 
-              {/* Asymmetric Bento Grid: Primary Interior/Garden spans 7 cols, Secondary spans 5 cols */}
+              {/* Row 2: 12-Column Asymmetric Bento Grid (5 - 4 - 3) */}
               <section
-                aria-label="Điều khiển thiết bị thông minh Bento Grid"
-                className="grid grid-cols-1 lg:grid-cols-12 gap-5"
+                aria-label="Không gian điều phối trung tâm Bento Grid"
+                className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch"
               >
-                <div className="lg:col-span-7">
-                  <LightingControlCard
+                {/* Left 5 Columns: Living Room Interior + Sage Bar Chart */}
+                <div className="lg:col-span-5 flex flex-col gap-4">
+                  <LivingRoomCard
+                    telemetry={telemetry}
+                    pendingCmd={pendingCmd}
+                    onCommand={handleCommand}
+                  />
+                  <AnalyticsCard
+                    history={history}
+                    summary={summary}
+                    onOpenFullAnalytics={() => handleSelectNav('analytics')}
+                  />
+                </div>
+
+                {/* Center 4 Columns: 270-Degree Circular Gauge */}
+                <div className="lg:col-span-4">
+                  <CircularGauge
                     telemetry={telemetry}
                     pendingCmd={pendingCmd}
                     onCommand={handleCommand}
                   />
                 </div>
-                <div className="lg:col-span-5">
-                  <ClotheslineControlCard
+
+                {/* Right 3 Columns: Smart Devices Directory */}
+                <div className="lg:col-span-3">
+                  <SmartDeviceList
                     telemetry={telemetry}
-                    pendingCmd={pendingCmd}
-                    onCommand={handleCommand}
-                  />
-                </div>
-                <div className="lg:col-span-7">
-                  <GardenControlCard
-                    telemetry={telemetry}
-                    pendingCmd={pendingCmd}
-                    onCommand={handleCommand}
-                  />
-                </div>
-                <div className="lg:col-span-5">
-                  <SecurityControlCard
-                    telemetry={telemetry}
-                    pendingCmd={pendingCmd}
-                    onCommand={handleCommand}
-                    soundEnabled={soundEnabled}
-                    onToggleSound={() => setSoundEnabled((s) => !s)}
+                    onSelectNav={handleSelectNav}
                   />
                 </div>
               </section>
-            </div>
-          ) : null}
 
-          {/* ================================================================
-              2. DEVICES VIEW: SMART DEVICE CARDS + HARDWARE GPIO DIRECTORY
-              ================================================================ */}
-          {activeNav === 'devices' ? (
-            <div className="space-y-6 aura-page-enter">
-              {/* Smart Hardware Node Directory Strip */}
-              <div className="aura-card p-6 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                  <div
-                    style={{
-                      backgroundColor: 'var(--olive-soft)',
-                      color: 'var(--olive-green)'
-                    }}
-                    className="w-11 h-11 rounded-[15px] flex items-center justify-center"
-                  >
-                    <Cpu className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h2
-                      style={{ color: 'var(--text-primary)' }}
-                      className="text-[17px] font-semibold"
-                    >
-                      Danh mục thiết bị nội thất &amp; ngoại thất
-                    </h2>
-                    <p style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-                      Đồng bộ trạng thái hai chiều qua MQTT Topic{' '}
-                      <span translate="no" className="font-medium">
-                        {connMeta.commandTopic}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-[12px]">
-                  <span className="aura-subcard px-3 py-1.5 font-medium" translate="no">
-                    IO32: {telemetry.lightOn ? 'ON' : 'OFF'}
-                  </span>
-                  <span className="aura-subcard px-3 py-1.5 font-medium" translate="no">
-                    IO27 PIR: {telemetry.pirLocked ? 'LOCKED' : 'AUTO'}
-                  </span>
-                  <span className="aura-subcard px-3 py-1.5 font-medium" translate="no">
-                    IO33 Servo: {telemetry.servoAngle}°
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Row 3: 4 Studio 3D Matte Product Device Cards */}
+              <section
+                aria-label="Điều khiển nhanh thiết bị 3D"
+                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4"
+              >
                 <LightingControlCard
                   telemetry={telemetry}
                   pendingCmd={pendingCmd}
@@ -523,26 +480,81 @@ export default function App() {
                   pendingCmd={pendingCmd}
                   onCommand={handleCommand}
                 />
-              </div>
-
-              <SensorOverviewGrid telemetry={telemetry} history={history} />
+                <GardenControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+                <SecurityControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                  soundEnabled={soundEnabled}
+                  onToggleSound={() => setSoundEnabled((s) => !s)}
+                />
+              </section>
             </div>
           ) : null}
 
           {/* ================================================================
-              3. GARDEN VIEW: BOTANICAL SANCTUARY, IRRIGATION & WEATHER
+              2. DEVICES VIEW: 3D SMART DEVICE CARDS + LIVING ROOM VISUAL
               ================================================================ */}
-          {activeNav === 'garden' ? (
-            <div className="space-y-6 aura-page-enter">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                <div className="lg:col-span-7">
-                  <GardenControlCard
+          {activeNav === 'devices' ? (
+            <div className="space-y-4 aura-page-enter">
+              <div className="aura-card p-5 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div
+                    style={{
+                      backgroundColor: 'var(--soft-green)',
+                      color: 'var(--olive-green)'
+                    }}
+                    className="w-10 h-10 rounded-[14px] flex items-center justify-center"
+                  >
+                    <Cpu className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h2
+                      style={{ color: 'var(--text-primary)' }}
+                      className="text-[16px] font-semibold"
+                    >
+                      Danh mục thiết bị thông minh (Smart Devices)
+                    </h2>
+                    <p style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
+                      Đồng bộ hai chiều qua MQTT Topic{' '}
+                      <span translate="no" className="font-medium">
+                        {connMeta.commandTopic}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className="aura-subcard px-3 py-1.5 font-semibold" translate="no">
+                    IO32 Light: {telemetry.lightOn ? 'ON' : 'OFF'}
+                  </span>
+                  <span className="aura-subcard px-3 py-1.5 font-semibold" translate="no">
+                    IO27 PIR: {telemetry.pirLocked ? 'LOCKED' : 'AUTO'}
+                  </span>
+                  <span className="aura-subcard px-3 py-1.5 font-semibold" translate="no">
+                    IO33 Servo: {telemetry.servoAngle}° ({telemetry.servoMode})
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div className="lg:col-span-6">
+                  <LivingRoomCard
                     telemetry={telemetry}
                     pendingCmd={pendingCmd}
                     onCommand={handleCommand}
                   />
                 </div>
-                <div className="lg:col-span-5">
+                <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <LightingControlCard
+                    telemetry={telemetry}
+                    pendingCmd={pendingCmd}
+                    onCommand={handleCommand}
+                  />
                   <ClotheslineControlCard
                     telemetry={telemetry}
                     pendingCmd={pendingCmd}
@@ -551,98 +563,107 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Botanical Telemetry & Recent Irrigation Activity */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                <div className="lg:col-span-5 aura-card p-6 flex flex-col justify-between space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      style={{
-                        backgroundColor: 'var(--success-soft)',
-                        color: 'var(--smart-green)'
-                      }}
-                      className="w-10 h-10 rounded-[14px] flex items-center justify-center"
-                    >
-                      <Sprout className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h3
-                        style={{ color: 'var(--text-primary)' }}
-                        className="text-[16px] font-semibold"
-                      >
-                        Thống kê tưới tiêu khu vườn
-                      </h3>
-                      <p style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-                        Tổng hợp từ cảm biến độ ẩm đất LM393 (IO35)
-                      </p>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <GardenControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+                <SecurityControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                  soundEnabled={soundEnabled}
+                  onToggleSound={() => setSoundEnabled((s) => !s)}
+                />
+              </div>
+            </div>
+          ) : null}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="aura-subcard p-4">
-                      <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
-                        Tổng số đợt đã tưới
-                      </p>
-                      <p
-                        style={{ color: 'var(--text-primary)' }}
-                        className="text-[24px] font-semibold tabular-nums mt-1"
-                      >
-                        {summary.totalPumpRuns} đợt
-                      </p>
-                    </div>
-                    <div className="aura-subcard p-4">
-                      <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
-                        Lượng nước ước tính
-                      </p>
-                      <p
-                        style={{ color: 'var(--olive-green)' }}
-                        className="text-[24px] font-semibold tabular-nums mt-1"
-                      >
-                        ~{summary.estimatedWaterMl} ml
-                      </p>
-                    </div>
-                  </div>
+          {/* ================================================================
+              3. GARDEN VIEW: 270° CIRCULAR GAUGE + 3D IRRIGATION & CLOTHESLINE
+              ================================================================ */}
+          {activeNav === 'garden' ? (
+            <div className="space-y-4 aura-page-enter">
+              <SensorOverviewGrid telemetry={telemetry} history={history} />
 
-                  <p style={{ color: 'var(--text-muted)' }} className="text-[11px]">
-                    Độ ẩm đất trung bình phiên này: <strong>{Number(summary.avgSoil).toFixed(1)}%</strong> • Số lần mưa thu đồ: <strong>{summary.totalRainEvents}</strong>
-                  </p>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div className="lg:col-span-5">
+                  <CircularGauge
+                    telemetry={telemetry}
+                    pendingCmd={pendingCmd}
+                    onCommand={handleCommand}
+                  />
                 </div>
 
-                <div className="lg:col-span-7 aura-card p-6 space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <h3
-                      style={{ color: 'var(--text-primary)' }}
-                      className="text-[16px] font-semibold"
-                    >
-                      Nhật ký tưới cây &amp; thời tiết gần nhất
-                    </h3>
-                    <span style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-                      Thời gian thực
-                    </span>
+                <div className="lg:col-span-7 flex flex-col justify-between gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <GardenControlCard
+                      telemetry={telemetry}
+                      pendingCmd={pendingCmd}
+                      onCommand={handleCommand}
+                    />
+                    <ClotheslineControlCard
+                      telemetry={telemetry}
+                      pendingCmd={pendingCmd}
+                      onCommand={handleCommand}
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    {gardenLogs.length === 0 ? (
-                      <p style={{ color: 'var(--text-secondary)' }} className="text-[12px] py-6">
-                        Chưa có sự kiện tưới cây hoặc mưa thu giàn phơi trong phiên này.
-                      </p>
-                    ) : (
-                      gardenLogs.map((item, idx) => (
-                        <div
-                          key={item.id || idx}
-                          className="aura-subcard p-3.5 flex items-center justify-between gap-3 text-[12px]"
+                  {/* Botanical Irrigation Summary & Recent Activity */}
+                  <div className="aura-card p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <Sprout
+                          className="w-4 h-4"
+                          style={{ color: 'var(--olive-green)' }}
+                          aria-hidden="true"
+                        />
+                        <h3
+                          style={{ color: 'var(--text-primary)' }}
+                          className="text-[14px] font-semibold"
                         >
-                          <span style={{ color: 'var(--text-primary)' }} className="font-medium">
-                            {item.message}
-                          </span>
-                          <span
-                            style={{ color: 'var(--text-secondary)' }}
-                            className="text-[11px] tabular-nums shrink-0"
+                          Nhật ký tưới tiêu &amp; thời tiết gần nhất
+                        </h3>
+                      </div>
+                      <span
+                        style={{ color: 'var(--text-secondary)' }}
+                        className="text-[11px] tabular-nums"
+                      >
+                        Đã tưới: {summary.totalPumpRuns} đợt (~{summary.estimatedWaterMl} ml)
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {gardenLogs.length === 0 ? (
+                        <p
+                          style={{ color: 'var(--text-secondary)' }}
+                          className="text-[12px] py-3"
+                        >
+                          Chưa có sự kiện tưới cây hoặc mưa thu giàn phơi trong phiên này.
+                        </p>
+                      ) : (
+                        gardenLogs.slice(0, 3).map((item, idx) => (
+                          <div
+                            key={item.id || idx}
+                            className="aura-subcard px-3 py-2 flex items-center justify-between gap-2 text-[12px]"
                           >
-                            {formatShortTime(item.timestamp)}
-                          </span>
-                        </div>
-                      ))
-                    )}
+                            <span
+                              style={{ color: 'var(--text-primary)' }}
+                              className="font-medium truncate"
+                            >
+                              {item.message}
+                            </span>
+                            <span
+                              style={{ color: 'var(--text-secondary)' }}
+                              className="text-[11px] tabular-nums shrink-0"
+                            >
+                              {formatShortTime(item.timestamp)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -650,12 +671,14 @@ export default function App() {
           ) : null}
 
           {/* ================================================================
-              4. SECURITY VIEW: SECURITY COMMAND CENTER & ALERT TIMELINE
+              4. SECURITY VIEW: SECURITY CENTER & PIR MOTION TIMELINE
               ================================================================ */}
           {activeNav === 'security' ? (
-            <div className="space-y-6 aura-page-enter">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                <div className="lg:col-span-7">
+            <div className="space-y-4 aura-page-enter">
+              <SensorOverviewGrid telemetry={telemetry} history={history} />
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div className="lg:col-span-4">
                   <SecurityControlCard
                     telemetry={telemetry}
                     pendingCmd={pendingCmd}
@@ -664,68 +687,76 @@ export default function App() {
                     onToggleSound={() => setSoundEnabled((s) => !s)}
                   />
                 </div>
-                <div className="lg:col-span-5">
+                <div className="lg:col-span-4">
                   <LightingControlCard
                     telemetry={telemetry}
                     pendingCmd={pendingCmd}
                     onCommand={handleCommand}
                   />
                 </div>
+                <div className="lg:col-span-4">
+                  <SmartDeviceList
+                    telemetry={telemetry}
+                    onSelectNav={handleSelectNav}
+                  />
+                </div>
               </div>
 
-              {/* Security Event Timeline from Real System Logs */}
-              <div className="aura-card p-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      style={{
-                        backgroundColor: telemetry.fireAlert
-                          ? 'var(--danger-soft)'
-                          : 'var(--olive-soft)',
-                        color: telemetry.fireAlert
-                          ? 'var(--danger)'
-                          : 'var(--olive-green)'
-                      }}
-                      className="w-10 h-10 rounded-[14px] flex items-center justify-center"
+              {/* Security Event Timeline */}
+              <div className="aura-card p-5 space-y-3.5">
+                <div className="flex items-center gap-3">
+                  <div
+                    style={{
+                      backgroundColor: telemetry.fireAlert
+                        ? 'var(--danger-soft)'
+                        : 'var(--soft-green)',
+                      color: telemetry.fireAlert
+                        ? 'var(--danger)'
+                        : 'var(--olive-green)'
+                    }}
+                    className="w-9 h-9 rounded-[12px] flex items-center justify-center"
+                  >
+                    <ShieldCheck className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3
+                      style={{ color: 'var(--text-primary)' }}
+                      className="text-[15px] font-semibold"
                     >
-                      <ShieldCheck className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
-                    </div>
-                    <div>
-                      <h3
-                        style={{ color: 'var(--text-primary)' }}
-                        className="text-[16px] font-semibold"
-                      >
-                        Lịch sử giám sát an ninh &amp; cảm biến chuyển động PIR
-                      </h3>
-                      <p style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
-                        Tổng phát hiện PIR: {summary.totalPirDetections} lần • Tổng cảnh báo cháy: {summary.totalFireAlerts} lần
-                      </p>
-                    </div>
+                      Nhật ký giám sát an ninh &amp; cảm biến PIR
+                    </h3>
+                    <p style={{ color: 'var(--text-secondary)' }} className="text-[12px]">
+                      Phát hiện PIR: {summary.totalPirDetections} lần • Cảnh báo cháy:{' '}
+                      {summary.totalFireAlerts} lần
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {securityLogs.length === 0 ? (
                     <p
                       style={{ color: 'var(--text-secondary)' }}
-                      className="text-[12px] py-4 md:col-span-2"
+                      className="text-[12px] py-3 md:col-span-2"
                     >
-                      Hệ thống an ninh ổn định — Chưa ghi nhận cảnh báo cháy hoặc xâm nhập bất thường.
+                      Hệ thống an ninh ổn định — Chưa ghi nhận cảnh báo cháy hoặc chuyển động bất thường.
                     </p>
                   ) : (
                     securityLogs.map((item, idx) => (
                       <div
                         key={item.id || idx}
-                        className="aura-subcard p-3.5 flex items-start justify-between gap-3 text-[12px]"
+                        className="aura-subcard p-3 flex items-start justify-between gap-3 text-[12px]"
                       >
-                        <div className="space-y-1">
+                        <div className="space-y-0.5 min-w-0">
                           <p
                             style={{ color: 'var(--text-primary)' }}
-                            className="font-medium"
+                            className="font-medium truncate"
                           >
                             {item.message}
                           </p>
-                          <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
+                          <p
+                            style={{ color: 'var(--text-secondary)' }}
+                            className="text-[11px]"
+                          >
                             {item.category} • {item.source}
                           </p>
                         </div>
@@ -805,7 +836,7 @@ export default function App() {
                     ? 'var(--danger)'
                     : toast.tone === 'warning'
                     ? 'var(--warning)'
-                    : 'var(--smart-green)'
+                    : 'var(--success)'
               }}
               aria-hidden="true"
             />
@@ -827,7 +858,7 @@ export default function App() {
               backgroundColor: 'var(--bg-card)',
               borderColor: 'var(--danger)'
             }}
-            className="border-2 rounded-[22px] max-w-md w-full p-7 text-center shadow-2xl space-y-4 aura-danger-pulse"
+            className="border-2 rounded-[24px] max-w-md w-full p-7 text-center shadow-2xl space-y-4 aura-danger-pulse"
           >
             <div
               style={{
@@ -917,7 +948,7 @@ export default function App() {
               backgroundColor: 'var(--bg-card)',
               borderColor: 'var(--border-color)'
             }}
-            className="border rounded-[22px] max-w-md w-full p-6 space-y-4 shadow-2xl aura-page-enter"
+            className="border rounded-[24px] max-w-md w-full p-6 space-y-4 shadow-2xl aura-page-enter"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -999,7 +1030,7 @@ export default function App() {
               onClick={() => setNetworkModalOpen(false)}
               style={{
                 backgroundColor: 'var(--olive-green)',
-                color: '#FFFFFF'
+                color: '#FAFCF9'
               }}
               className="w-full py-3 aura-btn text-[12px] font-semibold"
             >
@@ -1022,7 +1053,7 @@ export default function App() {
               backgroundColor: 'var(--bg-card)',
               borderColor: 'var(--border-color)'
             }}
-            className="border rounded-[22px] max-w-sm w-full p-6 space-y-4 shadow-2xl aura-page-enter"
+            className="border rounded-[24px] max-w-sm w-full p-6 space-y-4 shadow-2xl aura-page-enter"
           >
             <div className="flex items-center gap-2.5">
               <AlertTriangle

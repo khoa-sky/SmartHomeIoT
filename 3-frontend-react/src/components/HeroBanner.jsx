@@ -396,3 +396,4 @@ const HeroBanner = memo(function HeroBanner({
 });
 
 export default HeroBanner;
+

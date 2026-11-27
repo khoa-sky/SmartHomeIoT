@@ -507,7 +507,7 @@ const AnalyticsView = memo(function AnalyticsView({
           unit="°C"
           data={visibleHistory}
           dataKey="temp"
-          strokeColor="#C5AB6B"
+          strokeColor="#394438"
           gradientId="tempChartGrad"
           minDomain={15}
           maxDomain={45}
@@ -519,7 +519,7 @@ const AnalyticsView = memo(function AnalyticsView({
           unit="%"
           data={visibleHistory}
           dataKey="hum"
-          strokeColor="#789681"
+          strokeColor="#72A765"
           gradientId="humChartGrad"
           minDomain={0}
           maxDomain={100}
@@ -531,13 +531,13 @@ const AnalyticsView = memo(function AnalyticsView({
           unit="%"
           data={visibleHistory}
           dataKey="soil"
-          strokeColor="#596B52"
+          strokeColor="#303B2F"
           gradientId="soilChartGrad"
           minDomain={0}
           maxDomain={100}
           thresholds={[
             { value: 30, label: '30% Tưới', color: '#C85C5C' },
-            { value: 40, label: '40% Ẩm', color: '#789681' }
+            { value: 40, label: '40% Ẩm', color: '#72A765' }
           ]}
         />
       </div>
