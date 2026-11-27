@@ -2,24 +2,269 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   AURA SMART HOME — SIGNATURE EDITION
+   Tagline: "Intelligent living, naturally."
+   Scandinavian Soft UI & Asymmetric Bento Grid Design Tokens
+   ============================================================================ */
+:root {
+  color-scheme: light;
+  /* Reference Palette — Signature Light */
+  --bg-main: #F3F5F1;
+  --bg-sidebar: #FAFCF9;
+  --bg-card: #FAFCF9;
+  --bg-elevated: #E5EBE4;
+  --bg-subtle: #EDF1EC;
+  --soft-green: #E5EBE4;
+  --sage-green: #A4ADA2;
+  --sage-surface: #C5CEC2;
+  --olive-green: #394438;
+  --dark-olive: #303B2F;
+
+  /* Typography */
+  --text-primary: #343E33;
+  --text-secondary: #929B90;
+  --text-muted: #A4ADA2;
+
+  /* Borders & Dividers */
+  --border-color: #E0E5DE;
+  --border-subtle: rgba(52, 62, 51, 0.06);
+
+  /* Semantic Accents */
+  --accent: #394438;
+  --accent-strong: #303B2F;
+  --accent-soft: #E5EBE4;
+  --olive-soft: rgba(57, 68, 56, 0.1);
+  --warm-lamp: #E6B86A;
+
+  --success: #72A765;
+  --success-soft: rgba(114, 167, 101, 0.14);
+  --warning: #C99649;
+  --warning-soft: rgba(201, 150, 73, 0.15);
+  --danger: #C85C5C;
+  --danger-soft: rgba(200, 92, 92, 0.14);
+
+  /* Soft Architectural Elevation */
+  --card-shadow:
+    0 1px 2px rgba(48, 59, 47, 0.025),
+    0 10px 26px -8px rgba(48, 59, 47, 0.045);
+  --card-shadow-hover:
+    0 4px 12px rgba(48, 59, 47, 0.04),
+    0 18px 34px -10px rgba(48, 59, 47, 0.075);
+
+  --radius-card: 24px;
+  --radius-subcard: 16px;
+  --radius-button: 14px;
+}
+
+/* ============================================================================
+   LUXURY DARK MODE — SIGNATURE BOTANICAL DARK (#1C221C / #272F27 / #323C31)
+   ============================================================================ */
+html.dark {
+  color-scheme: dark;
+  --bg-main: #1C221C;
+  --bg-sidebar: #222922;
+  --bg-card: #272F27;
+  --bg-elevated: #323C31;
+  --bg-subtle: #2B342B;
+  --soft-green: #323C31;
+  --sage-green: #7A8778;
+  --sage-surface: #343F34;
+  --olive-green: #9EAE98;
+  --dark-olive: #394438;
+
+  --text-primary: #F0F3ED;
+  --text-secondary: #A7B0A4;
+  --text-muted: #7F897D;
+
+  --border-color: #353F35;
+  --border-subtle: rgba(240, 243, 237, 0.07);
+
+  --accent: #9EAE98;
+  --accent-strong: #B4C3AE;
+  --accent-soft: rgba(158, 174, 152, 0.16);
+  --olive-soft: rgba(158, 174, 152, 0.15);
+  --warm-lamp: #E8BE74;
+
+  --success: #82B675;
+  --success-soft: rgba(130, 182, 117, 0.16);
+  --warning: #D5A45A;
+  --warning-soft: rgba(213, 164, 90, 0.16);
+  --danger: #D46A6A;
+  --danger-soft: rgba(212, 106, 106, 0.18);
+
+  --card-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.22),
+    0 14px 32px -8px rgba(0, 0, 0, 0.34);
+  --card-shadow-hover:
+    0 6px 16px rgba(0, 0, 0, 0.28),
+    0 20px 40px -10px rgba(0, 0, 0, 0.44);
+}
+
 @layer base {
   html {
-    color-scheme: dark;
+    font-family: 'Be Vietnam Pro', 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    transition:
+      background-color 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      color 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    overflow-x: hidden;
   }
 
   button,
   a {
     touch-action: manipulation;
   }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-/* Tôn trọng thiết lập giảm chuyển động của hệ điều hành */
+/* ============================================================================
+   SIGNATURE BENTO SURFACES & SOFT UI CONTROLS
+   ============================================================================ */
+.aura-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+  transition:
+    background-color 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aura-card-interactive:hover {
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-2px);
+}
+
+.aura-subcard {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-subcard);
+  transition:
+    background-color 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aura-sage-card {
+  background-color: var(--sage-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+  transition:
+    background-color 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aura-btn {
+  border-radius: var(--radius-button);
+  transition:
+    background-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+.aura-btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/* ============================================================================
+   DISCIPLINED MICRO-INTERACTIONS (200–400ms)
+   ============================================================================ */
+@keyframes auraFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auraWaterFlow {
+  0% {
+    stroke-dashoffset: 20;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes auraRainDrop {
+  0% {
+    transform: translateY(-3px);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(9px);
+    opacity: 0;
+  }
+}
+
+@keyframes auraDangerPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(200, 92, 92, 0.26);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(200, 92, 92, 0);
+  }
+}
+
+.aura-page-enter {
+  animation: auraFadeSlideIn 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.aura-stagger-1 {
+  animation: auraFadeSlideIn 260ms cubic-bezier(0.22, 1, 0.36, 1) 30ms both;
+}
+.aura-stagger-2 {
+  animation: auraFadeSlideIn 260ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both;
+}
+.aura-stagger-3 {
+  animation: auraFadeSlideIn 260ms cubic-bezier(0.22, 1, 0.36, 1) 110ms both;
+}
+.aura-stagger-4 {
+  animation: auraFadeSlideIn 260ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both;
+}
+
+.aura-water-stream {
+  stroke-dasharray: 5 5;
+  animation: auraWaterFlow 600ms linear infinite;
+}
+
+.aura-rain-drop {
+  animation: auraRainDrop 1.15s ease-in-out infinite;
+}
+
+.aura-danger-pulse {
+  animation: auraDangerPulse 2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
-  *::before,
-  *::after {
+  ::before,
+  ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
