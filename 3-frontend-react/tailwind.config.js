@@ -4,13 +4,14 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Manrope', 'Inter', 'system-ui', 'sans-serif']
+        sans: ['"Be Vietnam Pro"', 'Manrope', 'Inter', 'system-ui', 'sans-serif'],
+        serif: ['"Cormorant Garamond"', 'Georgia', 'serif']
       },
       borderRadius: {
-        card: '16px',
-        subcard: '12px',
-        control: '10px',
-        nav: '8px'
+        card: '22px',
+        subcard: '16px',
+        control: '14px',
+        nav: '12px'
       }
     }
   },
