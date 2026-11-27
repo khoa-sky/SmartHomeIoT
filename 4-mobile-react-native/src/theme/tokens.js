@@ -1,60 +1,110 @@
-// Aura Home — Warm Architectural Stone & Sage Botanical design tokens for Mobile
+// ============================================================================
+// AURA SMART HOME — SIGNATURE EDITION (MOBILE DESIGN TOKENS)
+// Tagline: "Intelligent living, naturally."
+// Synchronized 100% with 3-frontend-react/src/index.css
+// ============================================================================
 
-export const DARK_THEME = {
-  mode: 'dark',
-  bgMain: '#151613',
-  bgCard: '#1D1F1B',
-  bgElevated: '#242620',
-  bgSubtle: '#181A16',
-  textPrimary: '#F3F2EA',
-  textSecondary: '#A1A197',
-  textMuted: '#72736A',
-  border: '#303129',
-  accent: '#D4C47B',
-  accentStrong: '#E2D48E',
-  accentTextOn: '#151613',
-  accentSoft: 'rgba(212, 196, 123, 0.16)',
-  success: '#91B69A',
-  successTextOn: '#101A12',
-  successSoft: 'rgba(145, 182, 154, 0.16)',
-  warning: '#D8A65D',
-  warningTextOn: '#1C1408',
-  warningSoft: 'rgba(216, 166, 93, 0.16)',
-  danger: '#D77C75',
-  dangerTextOn: '#FFFFFF',
-  dangerSoft: 'rgba(215, 124, 117, 0.18)',
-  info: '#7EB4D4',
-  infoTextOn: '#0C1821',
-  infoSoft: 'rgba(126, 180, 212, 0.16)'
-};
+import { Platform } from 'react-native';
 
 export const LIGHT_THEME = {
   mode: 'light',
-  bgMain: '#F6F5F0',
-  bgCard: '#FFFFFF',
-  bgElevated: '#F1EFE8',
-  bgSubtle: '#F7F6F2',
-  textPrimary: '#20211E',
-  textSecondary: '#6F7068',
-  textMuted: '#999A92',
-  border: '#EAE9E2',
-  accent: '#C5B56B',
-  accentStrong: '#8E7D38',
-  accentTextOn: '#20211E',
-  accentSoft: 'rgba(197, 181, 107, 0.18)',
-  success: '#5F8264',
-  successTextOn: '#FFFFFF',
-  successSoft: 'rgba(95, 130, 100, 0.14)',
-  warning: '#C58333',
+  bgMain: '#F3F5F1',
+  bgSidebar: '#FAFCF9',
+  bgCard: '#FAFCF9',
+  bgElevated: '#E5EBE4',
+  bgSubtle: '#EDF1EC',
+  softGreen: '#E5EBE4',
+  sageGreen: '#A4ADA2',
+  sageSurface: '#C5CEC2',
+  oliveGreen: '#394438',
+  darkOlive: '#303B2F',
+
+  textPrimary: '#343E33',
+  textSecondary: '#929B90',
+  textMuted: '#A4ADA2',
+
+  border: '#E0E5DE',
+  borderSubtle: 'rgba(52, 62, 51, 0.08)',
+
+  accent: '#394438',
+  accentStrong: '#303B2F',
+  accentTextOn: '#FAFCF9',
+  accentSoft: '#E5EBE4',
+  oliveSoft: 'rgba(57, 68, 56, 0.10)',
+  warmLamp: '#E6B86A',
+
+  success: '#72A765',
+  successTextOn: '#FAFCF9',
+  successSoft: 'rgba(114, 167, 101, 0.14)',
+
+  warning: '#C99649',
   warningTextOn: '#FFFFFF',
-  warningSoft: 'rgba(197, 131, 51, 0.15)',
-  danger: '#C25A54',
+  warningSoft: 'rgba(201, 150, 73, 0.15)',
+
+  danger: '#C85C5C',
   dangerTextOn: '#FFFFFF',
-  dangerSoft: 'rgba(194, 90, 84, 0.15)',
-  info: '#3E7FA6',
-  infoTextOn: '#FFFFFF',
-  infoSoft: 'rgba(62, 127, 166, 0.14)'
+  dangerSoft: 'rgba(200, 92, 92, 0.14)',
+
+  info: '#394438',
+  infoTextOn: '#FAFCF9',
+  infoSoft: '#E5EBE4'
+};
+
+export const DARK_THEME = {
+  mode: 'dark',
+  bgMain: '#1C221C',
+  bgSidebar: '#222922',
+  bgCard: '#272F27',
+  bgElevated: '#323C31',
+  bgSubtle: '#2B342B',
+  softGreen: '#323C31',
+  sageGreen: '#7A8778',
+  sageSurface: '#343F34',
+  oliveGreen: '#9EAE98',
+  darkOlive: '#394438',
+
+  textPrimary: '#F0F3ED',
+  textSecondary: '#A7B0A4',
+  textMuted: '#7F897D',
+
+  border: '#353F35',
+  borderSubtle: 'rgba(240, 243, 237, 0.08)',
+
+  accent: '#9EAE98',
+  accentStrong: '#B4C3AE',
+  accentTextOn: '#1C221C',
+  accentSoft: 'rgba(158, 174, 152, 0.16)',
+  oliveSoft: 'rgba(158, 174, 152, 0.15)',
+  warmLamp: '#E8BE74',
+
+  success: '#82B675',
+  successTextOn: '#1C221C',
+  successSoft: 'rgba(130, 182, 117, 0.16)',
+
+  warning: '#D5A45A',
+  warningTextOn: '#1C221C',
+  warningSoft: 'rgba(213, 164, 90, 0.16)',
+
+  danger: '#D46A6A',
+  dangerTextOn: '#FFFFFF',
+  dangerSoft: 'rgba(212, 106, 106, 0.18)',
+
+  info: '#9EAE98',
+  infoTextOn: '#1C221C',
+  infoSoft: 'rgba(158, 174, 152, 0.16)'
 };
 
 export const TABULAR_NUMS = { fontVariant: ['tabular-nums'] };
 
+export const CARD_SHADOW = Platform.select({
+  ios: {
+    shadowColor: '#303B2F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16
+  },
+  android: {
+    elevation: 2
+  },
+  default: {}
+});

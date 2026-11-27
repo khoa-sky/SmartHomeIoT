@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,22 +23,38 @@ import {
   fetchMobileDeviceStatus,
   fetchMobileEventLogs,
   fetchMobileSensorHistory,
+  fetchServerRootInfo,
   normalizeServerInput,
   sendMobileCommand
 } from './src/services/mobileApi';
-import { DARK_THEME, LIGHT_THEME } from './src/theme/tokens';
+import {
+  CARD_SHADOW,
+  DARK_THEME,
+  LIGHT_THEME,
+  TABULAR_NUMS
+} from './src/theme/tokens';
 import HeaderBar from './src/components/HeaderBar';
 import SensorOverviewGrid from './src/components/SensorOverviewGrid';
-import DeviceControlPanels from './src/components/DeviceControlPanels';
+import LivingRoomCard from './src/components/LivingRoomCard';
+import CircularGauge from './src/components/CircularGauge';
+import AnalyticsCard from './src/components/AnalyticsCard';
+import SmartDeviceList from './src/components/SmartDeviceList';
+import {
+  LightingControlCard,
+  ClotheslineControlCard,
+  GardenControlCard,
+  SecurityControlCard
+} from './src/components/DeviceControlPanels';
 import AnalyticsTab from './src/components/AnalyticsTab';
 import SettingsTab from './src/components/SettingsTab';
 import FireAlertModal from './src/components/FireAlertModal';
 
+// Đồng bộ commit 6960190: Không dùng giá trị cảm biến giả lập ban đầu
 const INITIAL_TELEMETRY = {
-  temp: 32.2,
-  hum: 66,
-  soil: 38,
-  flame: 52,
+  temp: null,
+  hum: null,
+  soil: null,
+  flame: null,
   fireAlert: false,
   pir: false,
   pirLocked: false,
@@ -76,20 +92,35 @@ const INITIAL_CONN_META = {
   lastPacketReceived: null
 };
 
-const TABS = [
-  { id: 'control', label: 'Điều Khiển' },
-  { id: 'analytics', label: 'Thống Kê' },
-  { id: 'settings', label: 'Kết Nối' }
+// 6 phân trang đồng bộ 100% với Sidebar.jsx của 3-frontend-react
+const NAV_TABS = [
+  { id: 'overview', label: 'Tổng quan', shortLabel: 'Tổng quan' },
+  { id: 'devices', label: 'Thiết bị', shortLabel: 'Thiết bị' },
+  { id: 'garden', label: 'Sân vườn', shortLabel: 'Sân vườn' },
+  { id: 'security', label: 'An ninh', shortLabel: 'An ninh' },
+  { id: 'analytics', label: 'Phân tích', shortLabel: 'Phân tích' },
+  { id: 'settings', label: 'Cấu hình', shortLabel: 'Cấu hình' }
 ];
 
+function formatShortTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '—';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
 export default function App() {
-  const [themeMode, setThemeMode] = useState('dark');
+  // Mặc định Signature Light Mode theo 3-frontend-react Aura Smart Home Signature Edition
+  const [themeMode, setThemeMode] = useState('light');
   const theme = themeMode === 'dark' ? DARK_THEME : LIGHT_THEME;
 
-  const [activeTab, setActiveTab] = useState('control');
+  const [activeTab, setActiveTab] = useState('overview');
   const [serverIp, setServerIp] = useState(DEFAULT_SERVER_IP);
   const [activeIp, setActiveIp] = useState(DEFAULT_SERVER_IP);
-  const [ipEditorOpen, setIpEditorOpen] = useState(true);
+  const [ipEditorOpen, setIpEditorOpen] = useState(false);
   const [hubConnected, setHubConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -109,7 +140,6 @@ export default function App() {
   const connectionRef = useRef(null);
   const prevTelemetryRef = useRef(null);
   const lastPacketAtRef = useRef(null);
-  const lastChartSampleAtRef = useRef(0);
   const toastTimerRef = useRef(null);
 
   const showToast = useCallback((message, tone = 'info') => {
@@ -121,15 +151,21 @@ export default function App() {
   }, []);
 
   const loadSnapshotData = useCallback(async (targetIp) => {
-    const [statusRes, connRes, summaryRes, historyRes, logsRes] = await Promise.allSettled([
-      fetchMobileDeviceStatus(targetIp),
-      fetchMobileConnectionInfo(targetIp),
-      fetchMobileAnalyticsSummary(targetIp),
-      fetchMobileSensorHistory(targetIp, 24),
-      fetchMobileEventLogs(targetIp, 'ALL', 60)
-    ]);
+    const [rootRes, statusRes, connRes, summaryRes, historyRes, logsRes] =
+      await Promise.allSettled([
+        fetchServerRootInfo(targetIp),
+        fetchMobileDeviceStatus(targetIp),
+        fetchMobileConnectionInfo(targetIp),
+        fetchMobileAnalyticsSummary(targetIp),
+        fetchMobileSensorHistory(targetIp, 30),
+        fetchMobileEventLogs(targetIp, 'ALL', 100)
+      ]);
 
     let anySuccess = false;
+
+    if (rootRes.status === 'fulfilled' && rootRes.value) {
+      anySuccess = true;
+    }
 
     if (statusRes.status === 'fulfilled' && statusRes.value) {
       anySuccess = true;
@@ -177,7 +213,7 @@ export default function App() {
 
         const connection = new signalR.HubConnectionBuilder()
           .withUrl(buildSignalRUrl(ip))
-          .withAutomaticReconnect()
+          .withAutomaticReconnect([0, 2000, 5000, 10000])
           .configureLogging(signalR.LogLevel.Warning)
           .build();
 
@@ -203,8 +239,8 @@ export default function App() {
             } else if (prev.rain !== data.rain) {
               showToast(
                 data.rain
-                  ? 'Phát hiện mưa — Giàn phơi tự thu vào (165°)'
-                  : 'Trời khô ráo — Giàn phơi đưa ra ngoài (15°)',
+                  ? 'Phát hiện trời mưa — Giàn phơi tự động thu vào (165°)'
+                  : 'Trời đã khô ráo — Giàn phơi đưa ra ngoài (15°)',
                 'warning'
               );
             } else if (!prev.pumpOn && data.pumpOn) {
@@ -214,6 +250,11 @@ export default function App() {
 
           prevTelemetryRef.current = data;
           setTelemetry(data);
+          setConnMeta((c) => ({
+            ...c,
+            brokerConnected: true,
+            lastPacketReceived: data.lastUpdated || new Date().toISOString()
+          }));
 
           if (data.online) {
             lastPacketAtRef.current = Date.now();
@@ -224,28 +265,24 @@ export default function App() {
             setFireDismissed(false);
           }
 
-          const now = Date.now();
-          if (now - lastChartSampleAtRef.current >= 4500) {
-            lastChartSampleAtRef.current = now;
-            setHistory((prevHist) => {
-              const next = [
-                ...prevHist,
-                {
-                  id: now,
-                  timestamp: new Date(now).toISOString(),
-                  temp: data.temp,
-                  hum: data.hum,
-                  soil: data.soil
-                }
-              ];
-              return next.slice(-24);
-            });
-          }
+          setHistory((prevHist) => {
+            const next = [
+              ...prevHist,
+              {
+                id: Date.now(),
+                timestamp: data.lastUpdated || new Date().toISOString(),
+                temp: data.temp,
+                hum: data.hum,
+                soil: data.soil
+              }
+            ];
+            return next.slice(-30);
+          });
         });
 
         connection.on('NewEventLog', (logItem) => {
           if (cancelled || !logItem) return;
-          setLogs((prevLogs) => [logItem, ...prevLogs.slice(0, 79)]);
+          setLogs((prevLogs) => [logItem, ...prevLogs.slice(0, 119)]);
           fetchMobileAnalyticsSummary(ip)
             .then((sum) => {
               if (!cancelled && sum) setSummary(sum);
@@ -278,7 +315,10 @@ export default function App() {
         setHubConnected(true);
         setIpEditorOpen(false);
         if (reachable) {
-          showToast(`Đã kết nối Server C# (${normalizeServerInput(ip)})`, 'success');
+          showToast(
+            `Đã kết nối Aura Home Server (${normalizeServerInput(ip)})`,
+            'success'
+          );
         }
       } catch {
         if (!cancelled) {
@@ -308,14 +348,16 @@ export default function App() {
       const diffSec = Math.floor((Date.now() - lastPacketAtRef.current) / 1000);
       setSecondsAgo(diffSec);
       if (diffSec > 6) {
-        setTelemetry((prev) => (prev.online ? { ...prev, online: false } : prev));
+        setTelemetry((prev) =>
+          prev.online ? { ...prev, online: false } : prev
+        );
       }
     }, 1000);
 
     return () => clearInterval(timer);
   }, []);
 
-  // Rung điện thoại liên hồi khi phát hiện cháy (FR-02.6 + Commit 3)
+  // Rung điện thoại liên hồi khi phát hiện cháy (FR-02.6)
   useEffect(() => {
     if (!telemetry.fireAlert || fireDismissed || !vibrationEnabled) {
       Vibration.cancel();
@@ -348,7 +390,10 @@ export default function App() {
         if (ok) {
           showToast(`Đã làm mới kết nối tới ${normalized}`, 'success');
         } else {
-          showToast(`Không phản hồi từ ${normalized}. Kiểm tra Server C# cổng 5000.`, 'danger');
+          showToast(
+            `Không phản hồi từ ${normalized}. Kiểm tra Server C# cổng 5000.`,
+            'danger'
+          );
         }
       });
     } else {
@@ -361,23 +406,30 @@ export default function App() {
     setActiveIp(ip);
   }, []);
 
+  // Đồng bộ commit 6960190: Kiểm tra brokerDelivered === false
   const handleCommand = useCallback(
     async (cmd, value, successLabel) => {
       const key = `${cmd}:${value}`;
       setPendingCmd(key);
       try {
         const res = await sendMobileCommand(activeIp, cmd, value);
+        if (res?.brokerDelivered === false) {
+          showToast(
+            `Chưa gửi được lệnh ${cmd}:${value} tới MQTT Broker. Hãy kiểm tra kết nối Broker / ESP32.`,
+            'warning'
+          );
+          return;
+        }
         if (res?.latestState) {
           prevTelemetryRef.current = res.latestState;
           setTelemetry(res.latestState);
         }
-        showToast(successLabel || `Đã gửi lệnh ${cmd}: ${value}`, 'success');
+        showToast(successLabel || `Đã thực thi ${cmd}: ${value}`, 'success');
       } catch (err) {
-        Alert.alert(
-          'Lỗi Kết Nối Server C#',
-          `${err?.message || 'Không gửi được lệnh'}.\n\nHãy kiểm tra địa chỉ ${normalizeServerInput(
-            activeIp
-          )}, Wi-Fi chung mạng và chắc chắn Backend C# đang chạy.`
+        showToast(
+          err?.message ||
+            'Chưa kết nối được Backend C# (cổng 5000). Hãy kiểm tra IP LAN và Server C#.',
+          'danger'
         );
       } finally {
         setPendingCmd(null);
@@ -400,23 +452,39 @@ export default function App() {
     }
   }, [activeIp, loadSnapshotData, showToast]);
 
+  // Đồng bộ commit 6960190: Xử lý fallback khi Backend trên master chưa mở DELETE /api/analytics/logs
   const handleRequestClearLogs = useCallback(() => {
     Alert.alert(
       'Đặt lại nhật ký hoạt động?',
-      'Thao tác này sẽ xóa các dòng nhật ký cũ trên Backend C# và đưa bộ đếm thống kê về 0.',
+      'Thao tác này sẽ xóa các dòng nhật ký cũ và đặt lại bộ đếm số lần tưới, mưa, PIR và báo cháy về 0.',
       [
         { text: 'Hủy bỏ', style: 'cancel' },
         {
-          text: 'Xác nhận xóa',
+          text: 'Xác nhận đặt lại',
           style: 'destructive',
           onPress: async () => {
             try {
               const res = await clearMobileEventLogs(activeIp);
-              if (Array.isArray(res?.logs)) setLogs(res.logs);
-              if (res?.summary) setSummary(res.summary);
-              showToast('Đã đặt lại nhật ký sự kiện và bộ đếm', 'success');
+              if (res?.supported) {
+                if (Array.isArray(res?.logs)) setLogs(res.logs);
+                else setLogs([]);
+                if (res?.summary) setSummary(res.summary);
+                showToast(
+                  'Đã đặt lại nhật ký sự kiện và bộ đếm thống kê.',
+                  'success'
+                );
+              } else {
+                setLogs([]);
+                showToast(
+                  'Đã làm mới danh sách nhật ký hiển thị trên phiên ứng dụng hiện tại.',
+                  'warning'
+                );
+              }
             } catch {
-              showToast('Không thể xóa nhật ký. Kiểm tra kết nối Server C#.', 'danger');
+              showToast(
+                'Không thể đặt lại nhật ký. Hãy kiểm tra kết nối Server C#.',
+                'danger'
+              );
             }
           }
         }
@@ -427,6 +495,32 @@ export default function App() {
   const handleToggleTheme = useCallback(() => {
     setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
+
+  const handleSelectTab = useCallback(
+    (tabId) => {
+      setActiveTab(tabId);
+      if (tabId === 'analytics') {
+        loadSnapshotData(activeIp).catch(() => {});
+      }
+    },
+    [activeIp, loadSnapshotData]
+  );
+
+  const gardenLogs = useMemo(
+    () =>
+      logs
+        .filter((l) => l.category === 'TUOI_CAY' || l.category === 'GIAN_PHOI')
+        .slice(0, 4),
+    [logs]
+  );
+
+  const securityLogs = useMemo(
+    () =>
+      logs
+        .filter((l) => l.category === 'BAO_CHAY' || l.category === 'PIR')
+        .slice(0, 6),
+    [logs]
+  );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.bgMain }]}>
@@ -445,7 +539,7 @@ export default function App() {
           style={[styles.stickyFireStrip, { backgroundColor: theme.danger }]}
         >
           <Text style={[styles.stickyFireText, { color: theme.dangerTextOn }]}>
-            CẢNH BÁO CHÁY ĐANG KÍCH HOẠT (ADC {telemetry.flame}) — Chạm để mở lại chi tiết
+            CẢNH BÁO CHÁY ĐANG KÍCH HOẠT (ADC {telemetry.flame ?? '—'}) — Chạm để mở lại chi tiết
           </Text>
         </TouchableOpacity>
       ) : null}
@@ -462,13 +556,16 @@ export default function App() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={theme.accent}
-              colors={[theme.accent]}
+              tintColor={theme.oliveGreen}
+              colors={[theme.oliveGreen]}
             />
           }
         >
+          {/* HEADER AURA SMART HOME SIGNATURE EDITION */}
           <HeaderBar
             theme={theme}
+            activeTab={activeTab}
+            telemetry={telemetry}
             telemetryOnline={Boolean(telemetry.online)}
             hubConnected={hubConnected}
             connecting={connecting}
@@ -476,27 +573,445 @@ export default function App() {
             serverIp={serverIp}
             activeIp={activeIp}
             ipEditorOpen={ipEditorOpen}
+            recentLogs={logs}
             onToggleIpEditor={() => setIpEditorOpen((open) => !open)}
             onChangeServerIp={setServerIp}
             onSubmitIp={handleSubmitIp}
             onToggleTheme={handleToggleTheme}
+            onSelectTab={handleSelectTab}
           />
 
-          {activeTab === 'control' ? (
-            <View style={styles.tabBody}>
-              <SensorOverviewGrid theme={theme} telemetry={telemetry} />
-              <DeviceControlPanels
+          {/* ================================================================
+              1. OVERVIEW VIEW — ASYMMETRIC BENTO DASHBOARD (SYNCHRONIZED WITH WEB)
+                 - 4 SensorSummaryCards with real delta badges
+                 - Scandinavian LivingRoomCard
+                 - 270° CircularGauge (Soil Moisture & Pump)
+                 - Sage Green AnalyticsCard
+                 - SmartDeviceList (6 Hardware Subsystems)
+                 - 4 Studio 3D Matte Clay Device Cards
+              ================================================================ */}
+          {activeTab === 'overview' ? (
+            <View style={styles.viewStack}>
+              <SensorOverviewGrid
+                theme={theme}
+                telemetry={telemetry}
+                history={history}
+              />
+
+              <LivingRoomCard
                 theme={theme}
                 telemetry={telemetry}
                 pendingCmd={pendingCmd}
                 onCommand={handleCommand}
               />
+
+              <CircularGauge
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <AnalyticsCard
+                theme={theme}
+                history={history}
+                summary={summary}
+                onOpenFullAnalytics={() => handleSelectTab('analytics')}
+              />
+
+              <SmartDeviceList
+                theme={theme}
+                telemetry={telemetry}
+                onSelectTab={handleSelectTab}
+              />
+
+              <LightingControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <ClotheslineControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <GardenControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <SecurityControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+                vibrationEnabled={vibrationEnabled}
+                onToggleVibration={() => setVibrationEnabled((v) => !v)}
+              />
             </View>
           ) : null}
 
+          {/* ================================================================
+              2. DEVICES VIEW — 3D SMART DEVICE CARDS + LIVING ROOM SANCTUARY
+              ================================================================ */}
+          {activeTab === 'devices' ? (
+            <View style={styles.viewStack}>
+              <View
+                style={[
+                  styles.infoBannerCard,
+                  CARD_SHADOW,
+                  { backgroundColor: theme.bgCard, borderColor: theme.border }
+                ]}
+              >
+                <View style={styles.infoBannerTop}>
+                  <View
+                    style={[
+                      styles.infoBannerIcon,
+                      { backgroundColor: theme.softGreen }
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.infoBannerIconText,
+                        { color: theme.oliveGreen }
+                      ]}
+                    >
+                      IO
+                    </Text>
+                  </View>
+                  <View style={styles.infoBannerTextWrap}>
+                    <Text
+                      style={[
+                        styles.infoBannerTitle,
+                        { color: theme.textPrimary }
+                      ]}
+                    >
+                      Danh mục thiết bị thông minh (Smart Devices)
+                    </Text>
+                    <Text
+                      style={[
+                        styles.infoBannerSub,
+                        { color: theme.textSecondary }
+                      ]}
+                    >
+                      Đồng bộ hai chiều qua MQTT Topic {connMeta.commandTopic}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.hwPillsRow}>
+                  <View
+                    style={[
+                      styles.hwPill,
+                      { backgroundColor: theme.bgElevated }
+                    ]}
+                  >
+                    <Text
+                      style={[styles.hwPillText, { color: theme.textPrimary }]}
+                    >
+                      IO32 Light: {telemetry.lightOn ? 'ON' : 'OFF'}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.hwPill,
+                      { backgroundColor: theme.bgElevated }
+                    ]}
+                  >
+                    <Text
+                      style={[styles.hwPillText, { color: theme.textPrimary }]}
+                    >
+                      IO27 PIR: {telemetry.pirLocked ? 'LOCKED' : 'AUTO'}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.hwPill,
+                      { backgroundColor: theme.bgElevated }
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.hwPillText,
+                        TABULAR_NUMS,
+                        { color: theme.textPrimary }
+                      ]}
+                    >
+                      IO33 Servo: {telemetry.servoAngle}° ({telemetry.servoMode})
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <LivingRoomCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <LightingControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <ClotheslineControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <GardenControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <SecurityControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+                vibrationEnabled={vibrationEnabled}
+                onToggleVibration={() => setVibrationEnabled((v) => !v)}
+              />
+            </View>
+          ) : null}
+
+          {/* ================================================================
+              3. GARDEN VIEW — 270° CIRCULAR GAUGE + 3D IRRIGATION & CLOTHESLINE
+              ================================================================ */}
+          {activeTab === 'garden' ? (
+            <View style={styles.viewStack}>
+              <SensorOverviewGrid
+                theme={theme}
+                telemetry={telemetry}
+                history={history}
+              />
+
+              <CircularGauge
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <GardenControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <ClotheslineControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              {/* Botanical Irrigation Summary & Recent Activity */}
+              <View
+                style={[
+                  styles.timelineCard,
+                  CARD_SHADOW,
+                  { backgroundColor: theme.bgCard, borderColor: theme.border }
+                ]}
+              >
+                <View style={styles.timelineHeader}>
+                  <Text
+                    style={[styles.timelineTitle, { color: theme.textPrimary }]}
+                  >
+                    Nhật ký tưới tiêu &amp; thời tiết gần nhất
+                  </Text>
+                  <Text
+                    style={[
+                      styles.timelineCount,
+                      TABULAR_NUMS,
+                      { color: theme.textSecondary }
+                    ]}
+                  >
+                    Đã tưới: {summary.totalPumpRuns ?? 0} đợt (~
+                    {summary.estimatedWaterMl ?? 0} ml)
+                  </Text>
+                </View>
+
+                {gardenLogs.length === 0 ? (
+                  <Text
+                    style={[
+                      styles.timelineEmpty,
+                      { color: theme.textSecondary }
+                    ]}
+                  >
+                    Chưa có sự kiện tưới cây hoặc mưa thu giàn phơi trong phiên này.
+                  </Text>
+                ) : (
+                  <View style={styles.timelineList}>
+                    {gardenLogs.map((item, idx) => (
+                      <View
+                        key={item.id || idx}
+                        style={[
+                          styles.timelineItem,
+                          { backgroundColor: theme.bgElevated }
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.timelineMsg,
+                            { color: theme.textPrimary }
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {item.message}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.timelineTime,
+                            TABULAR_NUMS,
+                            { color: theme.textSecondary }
+                          ]}
+                        >
+                          {formatShortTime(item.timestamp)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : null}
+
+          {/* ================================================================
+              4. SECURITY VIEW — SECURITY CENTER & PIR MOTION TIMELINE
+              ================================================================ */}
+          {activeTab === 'security' ? (
+            <View style={styles.viewStack}>
+              <SensorOverviewGrid
+                theme={theme}
+                telemetry={telemetry}
+                history={history}
+              />
+
+              <SecurityControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+                vibrationEnabled={vibrationEnabled}
+                onToggleVibration={() => setVibrationEnabled((v) => !v)}
+              />
+
+              <LightingControlCard
+                theme={theme}
+                telemetry={telemetry}
+                pendingCmd={pendingCmd}
+                onCommand={handleCommand}
+              />
+
+              <SmartDeviceList
+                theme={theme}
+                telemetry={telemetry}
+                onSelectTab={handleSelectTab}
+              />
+
+              {/* Security Event Timeline */}
+              <View
+                style={[
+                  styles.timelineCard,
+                  CARD_SHADOW,
+                  { backgroundColor: theme.bgCard, borderColor: theme.border }
+                ]}
+              >
+                <View style={styles.timelineHeader}>
+                  <Text
+                    style={[styles.timelineTitle, { color: theme.textPrimary }]}
+                  >
+                    Nhật ký giám sát an ninh &amp; cảm biến PIR
+                  </Text>
+                  <Text
+                    style={[
+                      styles.timelineCount,
+                      TABULAR_NUMS,
+                      { color: theme.textSecondary }
+                    ]}
+                  >
+                    Phát hiện PIR: {summary.totalPirDetections ?? 0} lần • Cảnh báo cháy:{' '}
+                    {summary.totalFireAlerts ?? 0} lần
+                  </Text>
+                </View>
+
+                {securityLogs.length === 0 ? (
+                  <Text
+                    style={[
+                      styles.timelineEmpty,
+                      { color: theme.textSecondary }
+                    ]}
+                  >
+                    Hệ thống an ninh ổn định — Chưa ghi nhận cảnh báo cháy hoặc chuyển động bất thường.
+                  </Text>
+                ) : (
+                  <View style={styles.timelineList}>
+                    {securityLogs.map((item, idx) => (
+                      <View
+                        key={item.id || idx}
+                        style={[
+                          styles.timelineItem,
+                          { backgroundColor: theme.bgElevated }
+                        ]}
+                      >
+                        <View style={styles.timelineItemLeft}>
+                          <Text
+                            style={[
+                              styles.timelineMsg,
+                              { color: theme.textPrimary }
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {item.message}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.timelineMeta,
+                              { color: theme.textSecondary }
+                            ]}
+                          >
+                            {item.category} • {item.source}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.timelineTime,
+                            TABULAR_NUMS,
+                            { color: theme.textSecondary }
+                          ]}
+                        >
+                          {formatShortTime(item.timestamp)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : null}
+
+          {/* ================================================================
+              5. ANALYTICS VIEW — CHARTS, ACTIVITY LOGS & CSV EXPORT
+              ================================================================ */}
           {activeTab === 'analytics' ? (
             <AnalyticsTab
               theme={theme}
+              activeIp={activeIp}
               summary={summary}
               history={history}
               logs={logs}
@@ -506,9 +1021,13 @@ export default function App() {
             />
           ) : null}
 
+          {/* ================================================================
+              6. SETTINGS VIEW — APPLE-SETTINGS GROUPED CONFIGURATION
+              ================================================================ */}
           {activeTab === 'settings' ? (
             <SettingsTab
               theme={theme}
+              telemetry={telemetry}
               serverIp={serverIp}
               activeIp={activeIp}
               hubConnected={hubConnected}
@@ -520,6 +1039,7 @@ export default function App() {
               onSubmitIp={handleSubmitIp}
               onToggleVibration={setVibrationEnabled}
               onToggleTheme={handleToggleTheme}
+              onRequestClearLogs={handleRequestClearLogs}
             />
           ) : null}
         </ScrollView>
@@ -531,6 +1051,7 @@ export default function App() {
           <View
             style={[
               styles.toastBox,
+              CARD_SHADOW,
               {
                 backgroundColor: theme.bgCard,
                 borderColor:
@@ -538,59 +1059,73 @@ export default function App() {
                     ? theme.danger
                     : toast.tone === 'warning'
                     ? theme.warning
-                    : toast.tone === 'success'
-                    ? theme.success
-                    : theme.accent
+                    : theme.border
               }
             ]}
           >
-            <Text style={[styles.toastText, { color: theme.textPrimary }]}>{toast.message}</Text>
+            <View
+              style={[
+                styles.toastDot,
+                {
+                  backgroundColor:
+                    toast.tone === 'danger'
+                      ? theme.danger
+                      : toast.tone === 'warning'
+                      ? theme.warning
+                      : theme.success
+                }
+              ]}
+            />
+            <Text style={[styles.toastText, { color: theme.textPrimary }]}>
+              {toast.message}
+            </Text>
           </View>
         </View>
       ) : null}
 
-      {/* THANH ĐIỀU HƯỚNG 3 TAB DƯỚI ĐÁY */}
+      {/* THANH ĐIỀU HƯỚNG 6 PHÂN TRANG DƯỚI ĐÁY (ĐỒNG BỘ VỚI SIDEBAR WEB) */}
       <View
         style={[
           styles.bottomBar,
           {
-            backgroundColor: theme.bgCard,
+            backgroundColor: theme.bgSidebar,
             borderTopColor: theme.border
           }
         ]}
       >
-        {TABS.map((tab) => {
+        {NAV_TABS.map((tab) => {
           const active = activeTab === tab.id;
           return (
             <TouchableOpacity
               key={tab.id}
-              onPress={() => {
-                setActiveTab(tab.id);
-                if (tab.id === 'analytics') {
-                  loadSnapshotData(activeIp).catch(() => {});
-                }
-              }}
-              activeOpacity={0.75}
+              onPress={() => handleSelectTab(tab.id)}
+              activeOpacity={0.78}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               style={[
                 styles.tabBtn,
-                active ? { backgroundColor: theme.accentSoft } : null
+                active ? { backgroundColor: theme.softGreen } : null
               ]}
             >
               <View
                 style={[
                   styles.tabIndicator,
-                  { backgroundColor: active ? theme.accent : 'transparent' }
+                  {
+                    backgroundColor: active ? theme.oliveGreen : 'transparent'
+                  }
                 ]}
               />
               <Text
                 style={[
                   styles.tabLabel,
-                  { color: active ? theme.accentStrong : theme.textSecondary }
+                  {
+                    color: active ? theme.oliveGreen : theme.textSecondary,
+                    fontWeight: active ? '700' : '600'
+                  }
                 ]}
+                numberOfLines={1}
               >
-                {tab.label}
+                {tab.shortLabel}
               </Text>
             </TouchableOpacity>
           );
@@ -620,10 +1155,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 14,
     paddingBottom: 28,
-    gap: 12
+    gap: 14
   },
-  tabBody: {
-    gap: 12
+  viewStack: {
+    gap: 14
   },
   stickyFireStrip: {
     paddingHorizontal: 14,
@@ -632,34 +1167,138 @@ const styles = StyleSheet.create({
   },
   stickyFireText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     textAlign: 'center'
+  },
+  infoBannerCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12
+  },
+  infoBannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  infoBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  infoBannerIconText: {
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  infoBannerTextWrap: {
+    flex: 1,
+    minWidth: 0
+  },
+  infoBannerTitle: {
+    fontSize: 15,
+    fontWeight: '600'
+  },
+  infoBannerSub: {
+    fontSize: 11.5,
+    marginTop: 2
+  },
+  hwPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6
+  },
+  hwPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10
+  },
+  hwPillText: {
+    fontSize: 11,
+    fontWeight: '600'
+  },
+  timelineCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 18,
+    gap: 10
+  },
+  timelineHeader: {
+    gap: 2
+  },
+  timelineTitle: {
+    fontSize: 14.5,
+    fontWeight: '600'
+  },
+  timelineCount: {
+    fontSize: 11.5
+  },
+  timelineEmpty: {
+    fontSize: 12,
+    paddingVertical: 6
+  },
+  timelineList: {
+    gap: 6
+  },
+  timelineItem: {
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8
+  },
+  timelineItemLeft: {
+    flex: 1,
+    minWidth: 0
+  },
+  timelineMsg: {
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1
+  },
+  timelineMeta: {
+    fontSize: 10.5,
+    marginTop: 2
+  },
+  timelineTime: {
+    fontSize: 11
   },
   toastWrap: {
     position: 'absolute',
     left: 14,
     right: 14,
-    bottom: 74,
+    bottom: 72,
     alignItems: 'center'
   },
   toastBox: {
-    borderRadius: 14,
-    borderWidth: 1.5,
+    borderRadius: 16,
+    borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    maxWidth: '100%'
+    paddingVertical: 11,
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  toastDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4
   },
   toastText: {
     fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center'
+    fontWeight: '600',
+    flexShrink: 1
   },
   bottomBar: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 8
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    gap: 4
   },
   tabBtn: {
     flex: 1,
@@ -667,15 +1306,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 2,
     gap: 4
   },
   tabIndicator: {
-    width: 24,
+    width: 18,
     height: 3,
     borderRadius: 999
   },
   tabLabel: {
-    fontSize: 13,
-    fontWeight: '800'
+    fontSize: 10.5
   }
 });

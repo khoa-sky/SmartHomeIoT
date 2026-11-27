@@ -2,6 +2,10 @@ import React, { memo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { TABULAR_NUMS } from '../theme/tokens';
 
+/**
+ * FireAlertModal — Emergency Fire Alert Dialog
+ * Synchronized 100% with 3-frontend-react/src/App.jsx EMERGENCY FIRE ALERT MODAL
+ */
 function FireAlertModal({
   visible,
   theme,
@@ -29,54 +33,77 @@ function FireAlertModal({
           ]}
           accessibilityViewIsModal
         >
-          <View style={[styles.alertPill, { backgroundColor: theme.dangerSoft }]}>
-            <Text style={[styles.alertPillText, { color: theme.danger }]}>
-              CẢNH BÁO AN NINH KHẨN CẤP
+          {/* Centered Shield Alert Badge */}
+          <View
+            style={[
+              styles.shieldCircle,
+              { backgroundColor: theme.dangerSoft }
+            ]}
+          >
+            <Text style={[styles.shieldAlertMark, { color: theme.danger }]}>
+              !
             </Text>
           </View>
 
-          <Text style={[styles.title, { color: theme.textPrimary }]}>
-            Phát hiện nguồn lửa tại mạch!
-          </Text>
-
-          <Text style={[styles.desc, { color: theme.textSecondary }]}>
-            Cảm biến lửa hồng ngoại (IO34) ghi nhận chỉ số ADC{' '}
-            <Text style={[styles.adcStrong, TABULAR_NUMS, { color: theme.danger }]}>
-              {flame} (&lt; 15)
+          <View style={styles.textCenterBlock}>
+            <Text style={[styles.eyebrow, { color: theme.danger }]}>
+              CẢNH BÁO AN NINH KHẨN CẤP
             </Text>
-            . Còi báo động (IO19) và cụm 2 đèn đỏ (IO14) đang kích hoạt, máy bơm đã tự ngắt để đảm bảo an toàn.
-          </Text>
+
+            <Text style={[styles.title, { color: theme.textPrimary }]}>
+              Phát hiện nguồn nhiệt / lửa tại mạch
+            </Text>
+
+            <Text style={[styles.desc, { color: theme.textSecondary }]}>
+              Cảm biến lửa hồng ngoại (IO34) ghi nhận chỉ số ADC{' '}
+              <Text
+                style={[
+                  styles.adcStrong,
+                  TABULAR_NUMS,
+                  { color: theme.danger }
+                ]}
+              >
+                {flame ?? '—'} (&lt; 15)
+              </Text>
+              . Còi báo động (IO19) và cụm 2 đèn đỏ (IO14) đang kích hoạt, máy bơm đã tự động ngắt.
+            </Text>
+          </View>
 
           <View style={styles.actions}>
             <TouchableOpacity
               onPress={onToggleVibration}
-              activeOpacity={0.75}
+              activeOpacity={0.78}
               accessibilityRole="button"
               accessibilityLabel={
-                vibrationEnabled ? 'Tạm tắt rung cảnh báo trên điện thoại' : 'Bật lại rung cảnh báo'
+                vibrationEnabled
+                  ? 'Tắt rung cảnh báo trên điện thoại'
+                  : 'Bật rung cảnh báo trên điện thoại'
               }
               style={[
                 styles.secondaryBtn,
-                {
-                  backgroundColor: theme.bgElevated,
-                  borderColor: theme.border
-                }
+                { backgroundColor: theme.bgElevated }
               ]}
             >
-              <Text style={[styles.secondaryText, { color: theme.textPrimary }]}>
-                {vibrationEnabled ? 'Tạm tắt rung điện thoại' : 'Bật lại rung cảnh báo'}
+              <Text
+                style={[styles.secondaryText, { color: theme.textPrimary }]}
+              >
+                {vibrationEnabled
+                  ? 'Tắt rung điện thoại'
+                  : 'Bật rung điện thoại'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={onDismiss}
-              activeOpacity={0.8}
+              activeOpacity={0.82}
               accessibilityRole="button"
-              accessibilityLabel="Đã xác nhận cảnh báo cháy"
+              accessibilityLabel="Đã xác nhận cảnh báo"
               style={[styles.primaryBtn, { backgroundColor: theme.danger }]}
             >
-              <Text style={[styles.primaryText, { color: theme.dangerTextOn }]}>
-                Đã Xác Nhận Cảnh Báo
+              <Text
+                style={[styles.primaryText, { color: theme.dangerTextOn }]}
+              >
+                Đã xác nhận cảnh báo
               </Text>
             </TouchableOpacity>
           </View>
@@ -89,7 +116,7 @@ function FireAlertModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(10, 10, 10, 0.72)',
+    backgroundColor: 'rgba(12, 16, 12, 0.68)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20
@@ -97,61 +124,73 @@ const styles = StyleSheet.create({
   dialog: {
     width: '100%',
     maxWidth: 420,
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 2,
-    padding: 20,
-    gap: 14
+    padding: 24,
+    alignItems: 'center',
+    gap: 16
   },
-  alertPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999
+  shieldCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  alertPillText: {
+  shieldAlertMark: {
+    fontSize: 26,
+    fontWeight: '800'
+  },
+  textCenterBlock: {
+    alignItems: 'center',
+    gap: 6
+  },
+  eyebrow: {
     fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.4
+    fontWeight: '700',
+    letterSpacing: 0.8
   },
   title: {
-    fontSize: 20,
-    fontWeight: '800'
+    fontSize: 19,
+    fontWeight: '600',
+    textAlign: 'center'
   },
   desc: {
-    fontSize: 14,
-    lineHeight: 21
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 2
   },
   adcStrong: {
-    fontWeight: '800'
+    fontWeight: '700'
   },
   actions: {
+    width: '100%',
     gap: 10,
     marginTop: 4
   },
   secondaryBtn: {
     minHeight: 46,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 14
   },
   secondaryText: {
-    fontSize: 13,
-    fontWeight: '700'
+    fontSize: 12.5,
+    fontWeight: '600'
   },
   primaryBtn: {
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: 46,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 14
   },
   primaryText: {
-    fontSize: 14,
-    fontWeight: '800'
+    fontSize: 12.5,
+    fontWeight: '600'
   }
 });
 
 export default memo(FireAlertModal);
-
