@@ -39,6 +39,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A4444444-444
 		3-frontend-react\src\main.jsx = 3-frontend-react\src\main.jsx
 		3-frontend-react\src\index.css = 3-frontend-react\src\index.css
 		3-frontend-react\src\services\apiClient.js = 3-frontend-react\src\services\apiClient.js
+		3-frontend-react\src\components\Sidebar.jsx = 3-frontend-react\src\components\Sidebar.jsx
+		3-frontend-react\src\components\Header.jsx = 3-frontend-react\src\components\Header.jsx
+		3-frontend-react\src\components\SensorOverviewGrid.jsx = 3-frontend-react\src\components\SensorOverviewGrid.jsx
+		3-frontend-react\src\components\DeviceControlPanels.jsx = 3-frontend-react\src\components\DeviceControlPanels.jsx
+		3-frontend-react\src\components\AnalyticsView.jsx = 3-frontend-react\src\components\AnalyticsView.jsx
+		3-frontend-react\src\components\SettingsView.jsx = 3-frontend-react\src\components\SettingsView.jsx
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "4-Mobile-React-Native", "4-Mobile-React-Native", "{A5555555-5555-5555-5555-555555555555}"

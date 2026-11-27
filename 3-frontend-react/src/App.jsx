@@ -1,41 +1,129 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import * as signalR from '@microsoft/signalr';
 import {
-  sendDeviceCommand,
+  SIGNALR_HUB_URL,
+  fetchServerRootInfo,
   fetchDeviceStatus,
+  fetchConnectionInfo,
+  sendDeviceCommand,
   fetchAnalyticsSummary,
   fetchSensorHistory,
   fetchEventLogs,
-  getExportCsvUrl
+  clearEventLogs
 } from './services/apiClient';
-import { useSmartHomeHub } from './hooks/useSmartHomeHub';
-import ConnectionBadge from './components/ConnectionBadge';
-import SensorCards from './components/SensorCards';
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import SensorOverviewGrid from './components/SensorOverviewGrid';
 import {
-  Sprout,
-  Flame,
-  Lightbulb,
+  LightingControlCard,
+  ClotheslineControlCard,
+  GardenControlCard,
+  SecurityControlCard
+} from './components/DeviceControlPanels';
+import AnalyticsView from './components/AnalyticsView';
+import SettingsView from './components/SettingsView';
+import {
   ShieldAlert,
-  CloudRain,
-  Sun,
-  Power,
-  Activity,
-  Download,
-  Bell,
-  Lock,
-  Unlock,
-  BarChart3,
-  Sliders
+  Volume2,
+  VolumeX,
+  CheckCircle2,
+  AlertTriangle,
+  Smartphone,
+  X
 } from 'lucide-react';
 
+// Phát tiếng còi cảnh báo cháy qua Web Audio API
+function playBrowserAlarmBeep() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(860, ctx.currentTime);
+    osc.frequency.setValueAtTime(640, ctx.currentTime + 0.14);
+    gain.gain.setValueAtTime(0.07, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.28);
+    setTimeout(() => ctx.close().catch(() => {}), 350);
+  } catch {
+    // Trình duyệt chưa tương tác âm thanh
+  }
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState('control'); // 'control' | 'dashboard'
+  // Quản lý Light / Dark Mode lưu trong localStorage (mặc định Light Mode theo Aura Home)
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem('smarthome_theme');
+      return saved === 'dark' || saved === 'light' ? saved : 'light';
+    } catch {
+      return 'light';
+    }
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', theme === 'dark' ? '#151613' : '#F6F5F0');
+    }
+    try {
+      window.localStorage.setItem('smarthome_theme', theme);
+    } catch {
+      // Ignore storage error
+    }
+  }, [theme]);
+
+  const [activeNav, setActiveNav] = useState('overview');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const [lanIp, setLanIp] = useState('192.168.1.31');
+  const [connMeta, setConnMeta] = useState({
+    brokerConnected: false,
+    brokerHost: 'broker.emqx.io',
+    brokerPort: 1883,
+    telemetryTopic: 'smarthome/khoa2026/telemetry',
+    commandTopic: 'smarthome/khoa2026/command',
+    lastPacketReceived: null
+  });
+
+  const [telemetry, setTelemetry] = useState({
+    temp: 32.2,
+    hum: 66,
+    soil: 38,
+    flame: 52,
+    fireAlert: false,
+    pir: false,
+    pirLocked: false,
+    rain: false,
+    servoAngle: 15,
+    servoMode: 'AUTO',
+    lightOn: false,
+    redLedOn: false,
+    pumpOn: false,
+    pumpLocked: false,
+    pumpCount: 0,
+    online: false,
+    lastUpdated: null
+  });
 
   const [summary, setSummary] = useState({
-    maxTemp: 0,
-    minTemp: 0,
-    avgTemp: 0,
-    avgHum: 0,
-    avgSoil: 0,
+    maxTemp: 33.1,
+    minTemp: 31.5,
+    avgTemp: 32.3,
+    avgHum: 66.5,
+    avgSoil: 39.0,
     totalPumpRuns: 0,
     estimatedWaterMl: 0,
     totalPirDetections: 0,
@@ -43,594 +131,636 @@ export default function App() {
     totalFireAlerts: 0
   });
 
+  const [history, setHistory] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [logFilter, setLogFilter] = useState('ALL');
+
   const [fireDismissed, setFireDismissed] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [pendingCmd, setPendingCmd] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [networkModalOpen, setNetworkModalOpen] = useState(false);
+  const [confirmClearModal, setConfirmClearModal] = useState(false);
 
-  // Nhật ký sự kiện mới từ SignalR -> thêm vào bảng và làm mới thống kê
-  const handleEventLog = useCallback((logItem) => {
-    setLogs((prev) => [logItem, ...prev.slice(0, 99)]);
-    fetchAnalyticsSummary().then(setSummary).catch(() => {});
-  }, []);
+  const prevTelemetryRef = useRef(null);
+  const toastTimerRef = useRef(null);
 
-  // Kết nối SignalR Real-time với Backend C# (sự kiện ReceiveTelemetry mỗi 1 giây)
-  const { telemetry, setTelemetry, history, setHistory, hubStatus } = useSmartHomeHub({
-    onEventLog: handleEventLog
-  });
-
-  // Hết cháy thì cho phép modal cảnh báo hiện lại ở lần cháy kế tiếp
-  useEffect(() => {
-    if (!telemetry.fireAlert) setFireDismissed(false);
-  }, [telemetry.fireAlert]);
+  function showToast(message, tone = 'default') {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, tone, id: Date.now() });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+    }, 3200);
+  }
 
   useEffect(() => {
     loadInitialData();
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(SIGNALR_HUB_URL)
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on('ReceiveTelemetry', (data) => {
+      const prev = prevTelemetryRef.current;
+      if (prev) {
+        if (prev.lightOn !== data.lightOn) {
+          showToast(
+            data.lightOn
+              ? 'Đèn phòng khách (IO32) đã bật sáng'
+              : 'Đèn phòng khách (IO32) đã tắt',
+            'accent'
+          );
+        } else if (prev.pirLocked !== data.pirLocked) {
+          showToast(
+            data.pirLocked
+              ? 'Đã khóa cảm biến PIR (Chế độ ngủ)'
+              : 'Đã mở khóa cảm biến PIR tự động',
+            'success'
+          );
+        } else if (prev.rain !== data.rain) {
+          showToast(
+            data.rain
+              ? 'Phát hiện trời mưa — Giàn phơi tự động thu vào (165°)'
+              : 'Trời đã khô ráo — Giàn phơi đưa ra ngoài (15°)',
+            'warning'
+          );
+        }
+      }
+      prevTelemetryRef.current = data;
+
+      setTelemetry(data);
+      setConnMeta((c) => ({
+        ...c,
+        brokerConnected: true,
+        lastPacketReceived: data.lastUpdated || new Date().toISOString()
+      }));
+
+      if (!data.fireAlert) {
+        setFireDismissed(false);
+      }
+
+      setHistory((prevHist) => {
+        const next = [
+          ...prevHist,
+          {
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            temp: data.temp,
+            hum: data.hum,
+            soil: data.soil
+          }
+        ];
+        return next.slice(-30);
+      });
+    });
+
+    connection.on('NewEventLog', (logItem) => {
+      setLogs((prevLogs) => [logItem, ...prevLogs.slice(0, 149)]);
+      fetchAnalyticsSummary().then(setSummary).catch(() => {});
+    });
+
+    connection.start().catch(() => {});
+    return () => {
+      connection.stop();
+    };
   }, []);
 
-  async function loadInitialData() {
-    const [st, sum, hist, evLogs] = await Promise.allSettled([
-      fetchDeviceStatus(),
-      fetchAnalyticsSummary(),
-      fetchSensorHistory(25),
-      fetchEventLogs('ALL', 100)
-    ]);
-    if (st.status === 'fulfilled' && st.value) setTelemetry((prev) => ({ ...prev, ...st.value }));
-    if (sum.status === 'fulfilled' && sum.value) setSummary(sum.value);
-    if (hist.status === 'fulfilled' && Array.isArray(hist.value)) setHistory(hist.value);
-    if (evLogs.status === 'fulfilled' && Array.isArray(evLogs.value)) setLogs(evLogs.value);
-  }
+  // Phát chuông báo cháy trên trình duyệt khi fireAlert === true
+  useEffect(() => {
+    if (!telemetry.fireAlert || fireDismissed || !soundEnabled) return;
+    playBrowserAlarmBeep();
+    const timer = setInterval(() => {
+      playBrowserAlarmBeep();
+    }, 950);
+    return () => clearInterval(timer);
+  }, [telemetry.fireAlert, fireDismissed, soundEnabled]);
 
-  async function handleCommand(cmd, value) {
+  async function loadInitialData() {
     try {
-      const res = await sendDeviceCommand(cmd, value);
-      if (res?.latestState) setTelemetry((prev) => ({ ...prev, ...res.latestState }));
-    } catch (e) {
-      alert('Không thể gửi lệnh! Hãy kiểm tra Backend C# (cổng 5000) đã chạy chưa.');
+      const [rootInfo, st, conn, sum, hist, evLogs] = await Promise.all([
+        fetchServerRootInfo(),
+        fetchDeviceStatus().catch(() => null),
+        fetchConnectionInfo().catch(() => null),
+        fetchAnalyticsSummary().catch(() => null),
+        fetchSensorHistory(30).catch(() => []),
+        fetchEventLogs('ALL', 120).catch(() => [])
+      ]);
+
+      if (rootInfo?.lanIpAddress && rootInfo.lanIpAddress !== '127.0.0.1') {
+        setLanIp(rootInfo.lanIpAddress);
+      } else if (
+        typeof window !== 'undefined' &&
+        window.location.hostname &&
+        window.location.hostname !== 'localhost'
+      ) {
+        setLanIp(window.location.hostname);
+      }
+
+      if (st) {
+        prevTelemetryRef.current = st;
+        setTelemetry(st);
+      }
+      if (conn) setConnMeta((prev) => ({ ...prev, ...conn }));
+      if (sum) setSummary(sum);
+      if (Array.isArray(hist)) setHistory(hist);
+      if (Array.isArray(evLogs)) setLogs(evLogs);
+    } catch {
+      // Đợi Backend C# khởi động
     }
   }
 
-  const filteredLogs =
-    logFilter === 'ALL' ? logs : logs.filter((l) => l.category === logFilter);
+  async function handleCommand(cmd, value, label) {
+    const key = `${cmd}:${value}`;
+    setPendingCmd(key);
+    try {
+      const res = await sendDeviceCommand(cmd, value);
+      if (res?.latestState) {
+        prevTelemetryRef.current = res.latestState;
+        setTelemetry(res.latestState);
+      }
+      showToast(label || `Đã thực thi ${cmd}: ${value}`, 'success');
+    } catch (err) {
+      showToast(
+        err.message ||
+          'Chưa kết nối được Backend C# (cổng 5000). Hãy khởi động Server C# trước.',
+        'danger'
+      );
+    } finally {
+      setPendingCmd(null);
+    }
+  }
+
+  async function handleConfirmClearLogs() {
+    try {
+      const res = await clearEventLogs();
+      if (Array.isArray(res?.logs)) setLogs(res.logs);
+      if (res?.summary) setSummary(res.summary);
+      setConfirmClearModal(false);
+      showToast('Đã đặt lại nhật ký sự kiện và bộ đếm thống kê.', 'success');
+    } catch {
+      showToast('Không thể đặt lại nhật ký. Hãy kiểm tra kết nối Server C#.', 'danger');
+    }
+  }
+
+  function toggleTheme() {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-12">
-      {/* MODAL CẢNH BÁO CHÁY KHẨN CẤP TOÀN MÀN HÌNH */}
-      {telemetry.fireAlert && !fireDismissed && (
-        <div className="fixed inset-0 z-50 bg-red-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-pulse">
-          <div className="bg-slate-900 border-2 border-red-500 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl">
-            <div className="w-16 h-16 rounded-full bg-red-600/20 border border-red-500 flex items-center justify-center mx-auto mb-4">
-              <Flame className="w-10 h-10 text-red-500" />
+    <div
+      style={{
+        backgroundColor: 'var(--bg-main)',
+        color: 'var(--text-primary)'
+      }}
+      className="min-h-screen flex transition-colors duration-200"
+    >
+      {/* SIDEBAR NAVIGATION */}
+      <Sidebar
+        activeNav={activeNav}
+        onSelectNav={(id) => {
+          setActiveNav(id);
+          if (id === 'analytics') loadInitialData();
+        }}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
+        online={telemetry.online}
+      />
+
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header
+          activeNav={activeNav}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          onOpenNetworkModal={() => setNetworkModalOpen(true)}
+          telemetry={telemetry}
+          lanIp={lanIp}
+          recentLogs={logs}
+          onSelectNav={(id) => {
+            setActiveNav(id);
+            if (id === 'analytics') loadInitialData();
+          }}
+        />
+
+        <main className="flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          {/* OVERVIEW VIEW: 4 SENSOR CARDS + ALL 4 DEVICE CONTROL PANELS */}
+          {activeNav === 'overview' ? (
+            <>
+              <SensorOverviewGrid telemetry={telemetry} />
+              <section
+                aria-label="Điều khiển thiết bị thông minh"
+                className="grid grid-cols-1 lg:grid-cols-2 gap-5"
+              >
+                <LightingControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+                <ClotheslineControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+                <GardenControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+                <SecurityControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                  soundEnabled={soundEnabled}
+                  onToggleSound={() => setSoundEnabled((s) => !s)}
+                />
+              </section>
+            </>
+          ) : null}
+
+          {/* DEVICES VIEW: FOCUSED ON LIGHTING, PIR & SMART CLOTHESLINE */}
+          {activeNav === 'devices' ? (
+            <div className="space-y-6">
+              <SensorOverviewGrid telemetry={telemetry} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <LightingControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+                <ClotheslineControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+              </div>
             </div>
-            <h2 className="text-2xl font-extrabold text-red-400 mb-2">
-              !! CẢNH BÁO PHÁT HIỆN LỬA !!
-            </h2>
-            <p className="text-slate-300 text-sm mb-4">
-              Cảm biến lửa hồng ngoại (IO34) ghi nhận chỉ số{' '}
-              <span className="font-bold text-red-400">{telemetry.flame} (&lt; 15)</span>.
-              Còi báo động (IO19) và Cụm 2 Đèn Đỏ (IO14) đang kích hoạt khẩn cấp!
-            </p>
-            <button
-              onClick={() => setFireDismissed(true)}
-              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 font-bold text-white transition"
+          ) : null}
+
+          {/* GARDEN VIEW: FOCUSED ON SOIL MOISTURE & IRRIGATION PUMP */}
+          {activeNav === 'garden' ? (
+            <div className="space-y-6">
+              <SensorOverviewGrid telemetry={telemetry} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <GardenControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+                <ClotheslineControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {/* SECURITY VIEW: FOCUSED ON FIRE DETECTION, ALARM & PIR MOTION */}
+          {activeNav === 'security' ? (
+            <div className="space-y-6">
+              <SensorOverviewGrid telemetry={telemetry} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <SecurityControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                  soundEnabled={soundEnabled}
+                  onToggleSound={() => setSoundEnabled((s) => !s)}
+                />
+                <LightingControlCard
+                  telemetry={telemetry}
+                  pendingCmd={pendingCmd}
+                  onCommand={handleCommand}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {/* ANALYTICS VIEW: CHARTS, ACTIVITY LOGS & CSV EXPORT */}
+          {activeNav === 'analytics' ? (
+            <AnalyticsView
+              summary={summary}
+              history={history}
+              logs={logs}
+              onRefresh={loadInitialData}
+              onRequestClearLogs={() => setConfirmClearModal(true)}
+            />
+          ) : null}
+
+          {/* SETTINGS VIEW */}
+          {activeNav === 'settings' ? (
+            <SettingsView
+              theme={theme}
+              onToggleTheme={toggleTheme}
+              soundEnabled={soundEnabled}
+              onToggleSound={() => setSoundEnabled((s) => !s)}
+              lanIp={lanIp}
+              connMeta={connMeta}
+              telemetry={telemetry}
+              onRequestClearLogs={() => setConfirmClearModal(true)}
+            />
+          ) : null}
+        </main>
+      </div>
+
+      {/* TOAST FEEDBACK (ARIA-LIVE) */}
+      <div
+        aria-live="polite"
+        className="fixed bottom-5 right-5 z-40 max-w-sm pointer-events-none"
+      >
+        {toast ? (
+          <div
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor:
+                toast.tone === 'danger'
+                  ? 'var(--danger)'
+                  : toast.tone === 'warning'
+                  ? 'var(--warning)'
+                  : 'var(--border-color)',
+              color: 'var(--text-primary)'
+            }}
+            className="pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-[12px] border shadow-lg text-[12px] font-medium"
+          >
+            <CheckCircle2
+              className="w-4 h-4 shrink-0"
+              strokeWidth={1.8}
+              style={{
+                color:
+                  toast.tone === 'danger'
+                    ? 'var(--danger)'
+                    : toast.tone === 'warning'
+                    ? 'var(--warning)'
+                    : 'var(--success)'
+              }}
+              aria-hidden="true"
+            />
+            <span>{toast.message}</span>
+          </div>
+        ) : null}
+      </div>
+
+      {/* EMERGENCY FIRE ALERT MODAL */}
+      {telemetry.fireAlert && !fireDismissed ? (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="emergency-fire-title"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overscroll-contain"
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--danger)'
+            }}
+            className="border-2 rounded-[16px] max-w-md w-full p-6 text-center shadow-2xl space-y-4"
+          >
+            <div
+              style={{
+                backgroundColor: 'var(--danger-soft)',
+                color: 'var(--danger)'
+              }}
+              className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
             >
-              Đã Xác Nhận Cảnh Báo Trên Màn Hình
+              <ShieldAlert className="w-7 h-7" strokeWidth={1.8} aria-hidden="true" />
+            </div>
+
+            <div className="space-y-1.5">
+              <p
+                style={{ color: 'var(--danger)' }}
+                className="text-[11px] font-semibold uppercase tracking-wider"
+              >
+                Cảnh báo an ninh khẩn cấp
+              </p>
+              <h2
+                id="emergency-fire-title"
+                style={{ color: 'var(--text-primary)' }}
+                className="text-[20px] font-semibold"
+              >
+                Phát hiện nguồn nhiệt / lửa tại mạch
+              </h2>
+              <p
+                style={{ color: 'var(--text-secondary)' }}
+                className="text-[13px] leading-relaxed"
+              >
+                Cảm biến lửa hồng ngoại (IO34) ghi nhận chỉ số ADC{' '}
+                <strong style={{ color: 'var(--danger)' }} className="tabular-nums">
+                  {telemetry.flame} (&lt; 15)
+                </strong>
+                . Còi báo động (IO19) và cụm 2 đèn đỏ (IO14) đang kích hoạt, máy bơm đã tự động ngắt.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setSoundEnabled((s) => !s)}
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)'
+                }}
+                className="flex-1 py-2.5 px-4 rounded-[10px] text-[12px] font-medium flex items-center justify-center gap-2"
+              >
+                {soundEnabled ? (
+                  <>
+                    <VolumeX className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
+                    <span>Tắt âm báo trình duyệt</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
+                    <span>Bật âm báo trình duyệt</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFireDismissed(true)}
+                style={{
+                  backgroundColor: 'var(--danger)',
+                  color: '#FFFFFF'
+                }}
+                className="flex-1 py-2.5 px-4 rounded-[10px] text-[12px] font-semibold"
+              >
+                Đã xác nhận cảnh báo
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* LAN & MQTT CONNECTION INFO MODAL */}
+      {networkModalOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="network-modal-title"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-4 overscroll-contain"
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-color)'
+            }}
+            className="border rounded-[16px] max-w-md w-full p-6 space-y-4 shadow-xl"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Smartphone
+                  className="w-5 h-5"
+                  strokeWidth={1.75}
+                  style={{ color: 'var(--accent-strong)' }}
+                  aria-hidden="true"
+                />
+                <h2
+                  id="network-modal-title"
+                  style={{ color: 'var(--text-primary)' }}
+                  className="text-[16px] font-semibold"
+                >
+                  Thông tin kết nối mạng nội bộ &amp; MQTT
+                </h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Đóng hộp thoại"
+                onClick={() => setNetworkModalOpen(false)}
+                style={{ color: 'var(--text-secondary)' }}
+                className="p-1.5 rounded-[8px] hover:opacity-80"
+              >
+                <X className="w-4 h-4" strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              <div className="aura-subcard p-3.5">
+                <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
+                  Địa chỉ truy cập Web trên Điện thoại (cùng Wi-Fi)
+                </p>
+                <p
+                  translate="no"
+                  style={{ color: 'var(--text-primary)' }}
+                  className="text-[14px] font-semibold tabular-nums mt-0.5 select-all"
+                >
+                  http://{lanIp}:5173
+                </p>
+              </div>
+
+              <div className="aura-subcard p-3.5">
+                <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
+                  Địa chỉ IP Server C# (nhập vào App Mobile React Native)
+                </p>
+                <p
+                  translate="no"
+                  style={{ color: 'var(--text-primary)' }}
+                  className="text-[14px] font-semibold tabular-nums mt-0.5 select-all"
+                >
+                  {lanIp} (Cổng 5000)
+                </p>
+              </div>
+
+              <div className="aura-subcard p-3.5">
+                <p style={{ color: 'var(--text-secondary)' }} className="text-[11px]">
+                  Cấu hình MQTT Broker &amp; Topic
+                </p>
+                <p
+                  translate="no"
+                  style={{ color: 'var(--text-primary)' }}
+                  className="text-[12px] font-medium tabular-nums mt-0.5"
+                >
+                  {connMeta.brokerHost}:{connMeta.brokerPort}
+                </p>
+                <p
+                  translate="no"
+                  style={{ color: 'var(--text-secondary)' }}
+                  className="text-[11px] tabular-nums mt-0.5"
+                >
+                  {connMeta.telemetryTopic}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setNetworkModalOpen(false)}
+              style={{
+                backgroundColor: 'var(--text-primary)',
+                color: 'var(--bg-card)'
+              }}
+              className="w-full py-2.5 rounded-[10px] text-[12px] font-medium"
+            >
+              Đóng cửa sổ
             </button>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* HEADER BAR */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-              <Sprout className="w-6 h-6 text-emerald-400" />
-            </div>
-            <div>
-              <h1 className="font-bold text-base sm:text-lg leading-tight">
-                Smart Home &amp; Garden IoT
-              </h1>
-              <p className="text-xs text-slate-400">
-                Vietduino ESP32 N16 &bull; C# (.NET 3-Layer) &bull; React &amp; Tailwind
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* HUY HIỆU TRẠNG THÁI MẠCH ESP32 */}
-            <ConnectionBadge
-              hubStatus={hubStatus}
-              online={telemetry.online}
-              lastUpdated={telemetry.lastUpdated}
-            />
-
-            {/* CHUYỂN TAB ĐIỀU KHIỂN / DASHBOARD */}
-            <div className="bg-slate-800 p-1 rounded-xl flex gap-1">
-              <button
-                onClick={() => setActiveTab('control')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  activeTab === 'control'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-300 hover:text-white'
-                }`}
+      {/* CONFIRM RESET AUDIT LOGS MODAL */}
+      {confirmClearModal ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reset-logs-title"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] flex items-center justify-center p-4 overscroll-contain"
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-color)'
+            }}
+            className="border rounded-[16px] max-w-sm w-full p-5 space-y-4 shadow-xl"
+          >
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle
+                className="w-5 h-5 shrink-0"
+                strokeWidth={1.75}
+                style={{ color: 'var(--warning)' }}
+                aria-hidden="true"
+              />
+              <h2
+                id="reset-logs-title"
+                style={{ color: 'var(--text-primary)' }}
+                className="text-[15px] font-semibold"
               >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Điều Khiển</span>
+                Đặt lại nhật ký hoạt động?
+              </h2>
+            </div>
+            <p
+              style={{ color: 'var(--text-secondary)' }}
+              className="text-[12px] leading-relaxed"
+            >
+              Thao tác này sẽ xóa các dòng nhật ký cũ và đặt lại bộ đếm số lần tưới, mưa, PIR và báo cháy về 0.
+            </p>
+            <div className="flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmClearModal(false)}
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)'
+                }}
+                className="flex-1 py-2 rounded-[10px] text-[12px] font-medium"
+              >
+                Hủy bỏ
               </button>
               <button
-                onClick={() => {
-                  setActiveTab('dashboard');
-                  loadInitialData();
+                type="button"
+                onClick={handleConfirmClearLogs}
+                style={{
+                  backgroundColor: 'var(--danger)',
+                  color: '#FFFFFF'
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  activeTab === 'dashboard'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-300 hover:text-white'
-                }`}
+                className="flex-1 py-2 rounded-[10px] text-[12px] font-medium"
               >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span>Dashboard Thống Kê</span>
+                Xác nhận đặt lại
               </button>
             </div>
           </div>
         </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 pt-6 space-y-6">
-        {/* CỤM 4 THẺ CẢM BIẾN THỜI GIAN THỰC (SignalR ReceiveTelemetry) */}
-        <SensorCards
-          temp={telemetry.temp}
-          hum={telemetry.hum}
-          soil={telemetry.soil}
-          flame={telemetry.flame}
-          fireAlert={telemetry.fireAlert}
-          rain={telemetry.rain}
-        />
-
-        {/* PHÂN HỆ 1: TAB ĐIỀU KHIỂN TỪ XA */}
-        {activeTab === 'control' && (
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* KHỐI 1: ĐÈN TRẮNG PHÒNG KHÁCH & CẢM BIẾN CHUYỂN ĐỘNG PIR */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                      telemetry.lightOn
-                        ? 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/40'
-                        : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    <Lightbulb className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-base">
-                      Đèn Phòng Khách (IO32) &amp; PIR (IO27)
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Đồng bộ 2 chiều với Nút bấm vật lý (IO25)
-                    </p>
-                  </div>
-                </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    telemetry.lightOn
-                      ? 'bg-yellow-400/20 text-yellow-300'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {telemetry.lightOn ? 'ĐÈN ĐANG SÁNG' : 'ĐÈN ĐANG TẮT'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleCommand('LIGHT', 'ON')}
-                  className={`py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 ${
-                    telemetry.lightOn
-                      ? 'bg-yellow-500 text-slate-950 shadow-lg shadow-yellow-500/20'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                  }`}
-                >
-                  <Power className="w-4 h-4" />
-                  <span>Bật Đèn Trắng</span>
-                </button>
-                <button
-                  onClick={() => handleCommand('LIGHT', 'OFF')}
-                  className={`py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 ${
-                    !telemetry.lightOn
-                      ? 'bg-slate-700 text-white'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                  }`}
-                >
-                  <Power className="w-4 h-4" />
-                  <span>Tắt Đèn (Khóa PIR 5s)</span>
-                </button>
-              </div>
-
-              {/* CHẾ ĐỘ KHÓA / MỞ CẢM BIẾN PIR (KÊU BÍP) */}
-              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-slate-200">
-                    Cảm biến chuyển động PIR:{' '}
-                    <span
-                      className={
-                        telemetry.pirLocked ? 'text-amber-400' : 'text-emerald-400'
-                      }
-                    >
-                      {telemetry.pirLocked
-                        ? 'ĐÃ KHÓA (Chế độ Đi ngủ)'
-                        : telemetry.pir
-                        ? 'ĐANG CÓ NGƯỜI (PIR: CO)'
-                        : 'TỰ ĐỘNG BẬT ĐÈN (AUTO)'}
-                    </span>
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Tương đương thao tác đè giữ nút vật lý 1.2 giây (Còi kêu Bíp)
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    handleCommand('PIR_LOCK', telemetry.pirLocked ? 'UNLOCK' : 'LOCK')
-                  }
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 transition ${
-                    telemetry.pirLocked
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
-                  }`}
-                >
-                  {telemetry.pirLocked ? (
-                    <>
-                      <Unlock className="w-3.5 h-3.5" />
-                      <span>Mở Lại PIR</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Khóa PIR</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* KHỐI 2: GIÀN PHƠI QUẦN ÁO THÔNG MINH (SERVO SG90 & CẢM BIẾN MƯA) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-sky-500/15 text-sky-400 flex items-center justify-center">
-                    {telemetry.rain ? (
-                      <CloudRain className="w-6 h-6" />
-                    ) : (
-                      <Sun className="w-6 h-6 text-amber-400" />
-                    )}
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-base">
-                      Giàn Phơi Thông Minh (Servo IO33)
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Góc hiện tại: <b className="text-sky-300">{telemetry.servoAngle}°</b>{' '}
-                      ({telemetry.servoAngle > 90 ? 'Đã Thu Đồ' : 'Đang Phơi Đồ'})
-                    </p>
-                  </div>
-                </div>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-sky-500/15 text-sky-300">
-                  Chế độ: {telemetry.servoMode || 'AUTO'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2.5">
-                <button
-                  onClick={() => handleCommand('SERVO', 'AUTO')}
-                  className={`py-3 px-2 rounded-xl font-bold text-xs transition ${
-                    telemetry.servoMode === 'AUTO'
-                      ? 'bg-sky-600 text-white'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                  }`}
-                >
-                  🤖 Tự Động Theo Mưa
-                </button>
-                <button
-                  onClick={() => handleCommand('SERVO', 'OUT')}
-                  className={`py-3 px-2 rounded-xl font-bold text-xs transition ${
-                    telemetry.servoMode === 'OUT'
-                      ? 'bg-amber-500 text-slate-950'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                  }`}
-                >
-                  ☀️ Đưa Đồ Ra (15°)
-                </button>
-                <button
-                  onClick={() => handleCommand('SERVO', 'IN')}
-                  className={`py-3 px-2 rounded-xl font-bold text-xs transition ${
-                    telemetry.servoMode === 'IN'
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                  }`}
-                >
-                  🏠 Thu Đồ Vào (165°)
-                </button>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-400">
-                Khi ở chế độ <b>Tự Động</b>: Có mưa thật liên tục <b>0.6 giây</b> tự thu vào{' '}
-                <b>165°</b>; sau khi lau khô <b>2 giây</b> tự đưa đồ ra <b>15°</b> (tự ngắt xung
-                chống rung).
-              </div>
-            </div>
-
-            {/* KHỐI 3: MÁY BƠM TƯỚI CÂY TỰ ĐỘNG (RELAY IO26 & ĐẤT IO35) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                      telemetry.pumpOn
-                        ? 'bg-emerald-500/20 text-emerald-300 animate-pulse'
-                        : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    <Droplets className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-base">
-                      Hệ Thống Tưới Cây (Relay Bơm IO26)
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Tự tưới khi đất &lt; 30% &bull; Đợt tưới: {telemetry.pumpCount || 0}/5
-                    </p>
-                  </div>
-                </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    telemetry.pumpLocked
-                      ? 'bg-red-500/20 text-red-300'
-                      : telemetry.pumpOn
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {telemetry.pumpLocked
-                    ? 'ĐÃ KHÓA BƠM'
-                    : telemetry.pumpOn
-                    ? 'ĐANG TƯỚI...'
-                    : 'BƠM NGHỈ'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2.5">
-                <button
-                  onClick={() => handleCommand('PUMP', 'START')}
-                  className="py-3 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"
-                >
-                  🚿 Tưới Ngay (2.5s)
-                </button>
-                <button
-                  onClick={() => handleCommand('PUMP', 'STOP')}
-                  className="py-3 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition"
-                >
-                  🛑 Dừng Bơm
-                </button>
-                <button
-                  onClick={() => handleCommand('PUMP', 'UNLOCK')}
-                  className="py-3 px-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-bold text-xs transition"
-                >
-                  🔓 Mở Khóa Bơm
-                </button>
-              </div>
-            </div>
-
-            {/* KHỐI 4: CỤM 2 ĐÈN ĐỎ CẢNH BÁO (IO14) & CÒI BÁO CHÁY (IO19) */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                      telemetry.redLedOn || telemetry.fireAlert
-                        ? 'bg-red-500/25 text-red-400 animate-ping'
-                        : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    <ShieldAlert className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-base">
-                      Còi Báo Động (IO19) &amp; 2 Đèn Đỏ (IO14)
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Chớp đỏ khi Báo cháy hoặc khi Máy bơm đang chạy
-                    </p>
-                  </div>
-                </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    telemetry.redLedOn
-                      ? 'bg-red-500/20 text-red-300'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
-                >
-                  {telemetry.redLedOn ? 'ĐÈN ĐỎ: NHÁY' : 'ĐÈN ĐỎ: TẮT'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleCommand('ALARM_TEST', 'ON')}
-                  className="py-3 rounded-xl bg-red-600/25 hover:bg-red-600/35 border border-red-500/40 text-red-300 font-bold text-xs flex items-center justify-center gap-2 transition"
-                >
-                  <Bell className="w-4 h-4" />
-                  <span>Test Còi &amp; 2 Đèn Đỏ (2s)</span>
-                </button>
-                <button
-                  onClick={() => handleCommand('ALARM_TEST', 'OFF')}
-                  className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
-                >
-                  Tắt Test Báo Động
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* PHÂN HỆ 2: TAB DASHBOARD THỐNG KÊ & NHẬT KÝ */}
-        {activeTab === 'dashboard' && (
-          <section className="space-y-6">
-            {/* 4 THẺ KPI THỐNG KÊ TỔNG HỢP */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <p className="text-xs text-slate-400">Thống Kê Nhiệt Độ (°C)</p>
-                <p className="text-2xl font-extrabold text-orange-400 mt-1">
-                  TB: {summary.avgTemp} °C
-                </p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Cao nhất: <b className="text-slate-200">{summary.maxTemp}°C</b> &bull; Thấp
-                  nhất: <b className="text-slate-200">{summary.minTemp}°C</b>
-                </p>
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <p className="text-xs text-slate-400">Độ Ẩm Trung Bình</p>
-                <p className="text-2xl font-extrabold text-sky-400 mt-1">
-                  Khí: {summary.avgHum}% &bull; Đất: {summary.avgSoil}%
-                </p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Ngưỡng tưới tự động: &lt; 30%
-                </p>
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <p className="text-xs text-slate-400">Tổng Số Lần Bơm Tưới</p>
-                <p className="text-2xl font-extrabold text-emerald-400 mt-1">
-                  {summary.totalPumpRuns} đợt tưới
-                </p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Lượng nước ước tính: ~{summary.estimatedWaterMl} ml
-                </p>
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                <p className="text-xs text-slate-400">Sự Kiện Tự Động Hóa</p>
-                <p className="text-2xl font-extrabold text-indigo-400 mt-1">
-                  PIR: {summary.totalPirDetections} &bull; Mưa: {summary.totalRainEvents}
-                </p>
-                <p className="text-xs text-red-400 mt-2">
-                  Số lần cảnh báo cháy: {summary.totalFireAlerts}
-                </p>
-              </div>
-            </div>
-
-            {/* BIỂU ĐỒ BIẾN THIÊN THEO THỜI GIAN THỰC */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-blue-400" />
-                  <h3 className="font-bold text-base">
-                    Biểu Đồ Biến Thiên Nhiệt Độ, Độ Ẩm Khí &amp; Độ Ẩm Đất (25 mẫu gần nhất)
-                  </h3>
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-orange-400 font-semibold">● Nhiệt độ (°C)</span>
-                  <span className="text-sky-400 font-semibold">● Độ ẩm khí (%)</span>
-                  <span className="text-emerald-400 font-semibold">● Độ ẩm đất (%)</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-25 gap-1.5 items-end h-44 pt-4 px-2 bg-slate-950/60 rounded-xl border border-slate-800/80">
-                {history.map((pt, idx) => (
-                  <div
-                    key={idx}
-                    className="flex-1 flex flex-col items-center justify-end h-full gap-1"
-                    title={`Nhiệt: ${pt.temp}°C | Khí: ${pt.hum}% | Đất: ${pt.soil}%`}
-                  >
-                    <div className="w-full flex items-end justify-center gap-0.5 h-32">
-                      <div
-                        className="w-1.5 bg-orange-400 rounded-t"
-                        style={{ height: `${Math.min(100, pt.temp * 2)}%` }}
-                      />
-                      <div
-                        className="w-1.5 bg-sky-400 rounded-t"
-                        style={{ height: `${Math.min(100, pt.hum)}%` }}
-                      />
-                      <div
-                        className="w-1.5 bg-emerald-400 rounded-t"
-                        style={{ height: `${Math.min(100, pt.soil)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* BẢNG NHẬT KÝ HOẠT ĐỘNG & XUẤT FILE EXCEL CSV */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-bold text-base">
-                    Nhật Ký Sự Kiện Hệ Thống (System Audit Logs)
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Tự động lưu lại mọi thao tác điều khiển và kích hoạt cảm biến
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {['ALL', 'BAO_CHAY', 'TUOI_CAY', 'GIAN_PHOI', 'PIR', 'DIEU_KHIEN'].map(
-                    (cat) => (
-                      <button
-                        key={cat}
-                        onClick={() => setLogFilter(cat)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                          logFilter === cat
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    )
-                  )}
-
-                  <a
-                    href={getExportCsvUrl()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Xuất Báo Cáo Excel (.CSV)</span>
-                  </a>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto max-h-80 overflow-y-auto rounded-xl border border-slate-800">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 text-slate-400 sticky top-0">
-                    <tr>
-                      <th className="py-2.5 px-3">Thời Gian</th>
-                      <th className="py-2.5 px-3">Phân Loại</th>
-                      <th className="py-2.5 px-3">Nguồn</th>
-                      <th className="py-2.5 px-3">Nội Dung Chi Tiết</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {filteredLogs.map((item, i) => (
-                      <tr key={item.id || i} className="hover:bg-slate-800/50">
-                        <td className="py-2.5 px-3 whitespace-nowrap text-slate-400">
-                          {new Date(item.timestamp).toLocaleTimeString('vi-VN')}
-                        </td>
-                        <td className="py-2.5 px-3 font-bold text-blue-400">
-                          [{item.category}]
-                        </td>
-                        <td className="py-2.5 px-3 text-slate-300">{item.source}</td>
-                        <td className="py-2.5 px-3 text-slate-100">{item.message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
-        )}
-      </main>
+      ) : null}
     </div>
   );
 }

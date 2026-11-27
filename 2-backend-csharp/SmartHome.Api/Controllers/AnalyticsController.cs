@@ -32,20 +32,48 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet("logs")]
-    public IActionResult GetLogs([FromQuery] string category = "ALL", [FromQuery] int limit = 100)
+    public IActionResult GetLogs([FromQuery] string category = "ALL", [FromQuery] int limit = 100, [FromQuery] string? keyword = null)
     {
-        return Ok(_repo.GetLogs(category, limit));
+        return Ok(_repo.GetLogs(category, limit, keyword));
+    }
+
+    [HttpDelete("logs")]
+    public IActionResult ClearLogs()
+    {
+        _repo.ClearLogsAndResetCounters();
+        return Ok(new
+        {
+            success = true,
+            message = "Đã xóa lịch sử nhật ký và đặt lại bộ đếm sự kiện.",
+            logs = _repo.GetLogs("ALL", 50),
+            summary = _repo.GetSummary()
+        });
     }
 
     [HttpGet("export-csv")]
     public IActionResult ExportCsv()
     {
+        var summary = _repo.GetSummary();
         var logs = _repo.GetLogs("ALL", 500);
         var readings = _repo.GetReadings(500);
 
         var sb = new StringBuilder();
         sb.AppendLine("BÁO CÁO THỐNG KÊ & NHẬT KÝ HỆ THỐNG SMART HOME - VIETDUINO ESP32");
         sb.AppendLine($"Thời gian xuất báo cáo:,{DateTime.Now:dd/MM/yyyy HH:mm:ss}");
+        sb.AppendLine();
+
+        sb.AppendLine("--- 0. TỔNG HỢP CHỈ SỐ VẬN HÀNH (KPI SUMMARY) ---");
+        sb.AppendLine("Chỉ Số Thống Kê,Giá Trị,Đơn Vị");
+        sb.AppendLine($"Nhiệt độ trung bình,{summary.AvgTemp:F1},°C");
+        sb.AppendLine($"Nhiệt độ cao nhất (Max),{summary.MaxTemp:F1},°C");
+        sb.AppendLine($"Nhiệt độ thấp nhất (Min),{summary.MinTemp:F1},°C");
+        sb.AppendLine($"Độ ẩm không khí trung bình,{summary.AvgHum:F1},%");
+        sb.AppendLine($"Độ ẩm đất trung bình,{summary.AvgSoil:F1},%");
+        sb.AppendLine($"Tổng số đợt bơm tưới,{summary.TotalPumpRuns},đợt");
+        sb.AppendLine($"Lượng nước tưới ước tính,{summary.EstimatedWaterMl},ml");
+        sb.AppendLine($"Số lần phát hiện chuyển động (PIR),{summary.TotalPirDetections},lần");
+        sb.AppendLine($"Số lần mưa tự thu giàn phơi,{summary.TotalRainEvents},lần");
+        sb.AppendLine($"Số lần cảnh báo cháy khẩn cấp,{summary.TotalFireAlerts},lần");
         sb.AppendLine();
 
         sb.AppendLine("--- 1. NHẬT KÝ SỰ KIỆN HỆ THỐNG ---");

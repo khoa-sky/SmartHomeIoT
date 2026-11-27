@@ -81,14 +81,43 @@ public class SmartHomeRepository
         }
     }
 
-    public List<EventLog> GetLogs(string category = "ALL", int limit = 100)
+    public List<EventLog> GetLogs(string category = "ALL", int limit = 100, string? keyword = null)
     {
         lock (_lock)
         {
             var query = _logs.AsEnumerable();
             if (!string.IsNullOrWhiteSpace(category) && category != "ALL")
                 query = query.Where(x => x.Category.Equals(category, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                string kw = keyword.Trim();
+                query = query.Where(x =>
+                    x.Message.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                    x.Source.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                    x.Category.Contains(kw, StringComparison.OrdinalIgnoreCase));
+            }
             return query.Take(limit).ToList();
+        }
+    }
+
+    public void ClearLogsAndResetCounters()
+    {
+        lock (_lock)
+        {
+            _logs.Clear();
+            TotalPumpRuns = 0;
+            TotalPirDetections = 0;
+            TotalRainEvents = 0;
+            TotalFireAlerts = 0;
+            _logs.Add(new EventLog
+            {
+                Id = 1,
+                Timestamp = DateTime.Now,
+                Category = "HE_THONG",
+                Source = "SERVER_C#",
+                Message = "Đã làm mới bảng nhật ký sự kiện và đặt lại bộ đếm thống kê phiên làm việc."
+            });
+            SaveToDisk();
         }
     }
 
