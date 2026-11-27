@@ -119,10 +119,10 @@ export default function App() {
   });
 
   const [telemetry, setTelemetry] = useState({
-    temp: 32.2,
-    hum: 66,
-    soil: 38,
-    flame: 52,
+    temp: null,
+    hum: null,
+    soil: null,
+    flame: null,
     fireAlert: false,
     pir: false,
     pirLocked: false,
@@ -139,11 +139,11 @@ export default function App() {
   });
 
   const [summary, setSummary] = useState({
-    maxTemp: 33.1,
-    minTemp: 31.5,
-    avgTemp: 32.3,
-    avgHum: 66.5,
-    avgSoil: 39.0,
+    maxTemp: 0,
+    minTemp: 0,
+    avgTemp: 0,
+    avgHum: 0,
+    avgSoil: 0,
     totalPumpRuns: 0,
     estimatedWaterMl: 0,
     totalPirDetections: 0,
@@ -318,7 +318,6 @@ export default function App() {
       if (st) {
         prevTelemetryRef.current = st;
         setTelemetry(st);
-        setHubStatus('connected');
       }
       if (conn) setConnMeta((prev) => ({ ...prev, ...conn }));
       if (sum) setSummary(sum);
@@ -334,6 +333,13 @@ export default function App() {
     setPendingCmd(key);
     try {
       const res = await sendDeviceCommand(cmd, value);
+      if (res?.brokerDelivered === false) {
+        showToast(
+          `Chưa gửi được lệnh ${cmd}:${value} tới MQTT Broker. Hãy kiểm tra kết nối Broker / ESP32.`,
+          'warning'
+        );
+        return;
+      }
       if (res?.latestState) {
         prevTelemetryRef.current = res.latestState;
         setTelemetry(res.latestState);
@@ -353,10 +359,20 @@ export default function App() {
   async function handleConfirmClearLogs() {
     try {
       const res = await clearEventLogs();
-      if (Array.isArray(res?.logs)) setLogs(res.logs);
-      if (res?.summary) setSummary(res.summary);
-      setConfirmClearModal(false);
-      showToast('Đã đặt lại nhật ký sự kiện và bộ đếm thống kê.', 'success');
+      if (res?.supported) {
+        if (Array.isArray(res?.logs)) setLogs(res.logs);
+        else setLogs([]);
+        if (res?.summary) setSummary(res.summary);
+        setConfirmClearModal(false);
+        showToast('Đã đặt lại nhật ký sự kiện và bộ đếm thống kê.', 'success');
+      } else {
+        setLogs([]);
+        setConfirmClearModal(false);
+        showToast(
+          'Đã làm mới danh sách nhật ký hiển thị trên phiên trình duyệt hiện tại.',
+          'warning'
+        );
+      }
     } catch {
       showToast('Không thể đặt lại nhật ký. Hãy kiểm tra kết nối Server C#.', 'danger');
     }

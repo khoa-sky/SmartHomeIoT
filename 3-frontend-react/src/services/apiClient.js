@@ -78,12 +78,27 @@ export async function fetchEventLogs(category = 'ALL', limit = 100, keyword = ''
   return res.json();
 }
 
+/**
+ * Thử gọi DELETE /api/analytics/logs nếu Backend hỗ trợ;
+ * nếu Backend trên nhánh master chưa mở endpoint DELETE (trả 404/405),
+ * trả về { supported: false } để giao diện đặt lại danh sách hiển thị trên phiên Web mà không báo lỗi.
+ */
 export async function clearEventLogs() {
-  const res = await fetch(`${API_BASE_URL}/api/analytics/logs`, {
-    method: 'DELETE'
-  });
-  if (!res.ok) throw new Error('Không thể xóa nhật ký sự kiện');
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/analytics/logs`, {
+      method: 'DELETE'
+    });
+    if (res.status === 404 || res.status === 405) {
+      return { supported: false };
+    }
+    if (!res.ok) {
+      return { supported: false };
+    }
+    const data = await res.json().catch(() => ({}));
+    return { supported: true, ...data };
+  } catch {
+    return { supported: false };
+  }
 }
 
 export function getExportCsvUrl() {

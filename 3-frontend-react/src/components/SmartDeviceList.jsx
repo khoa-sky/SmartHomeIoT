@@ -99,7 +99,9 @@ const SmartDeviceList = memo(function SmartDeviceList({
       name: 'Cảm biến mưa & Khí hậu',
       status: isRaining
         ? 'Phát hiện trời mưa (IO23)'
-        : `Khô ráo • ${Number(telemetry.temp || 0).toFixed(1)}°C`,
+        : telemetry.temp !== null && telemetry.temp !== undefined && Number.isFinite(Number(telemetry.temp))
+        ? `Khô ráo • ${Number(telemetry.temp).toFixed(1)}°C`
+        : 'Khô ráo • Chờ dữ liệu nhiệt độ',
       dot: isRaining ? 'var(--warning)' : 'var(--success)',
       Icon: Cloudy,
       targetNav: 'garden'
@@ -204,3 +206,4 @@ const SmartDeviceList = memo(function SmartDeviceList({
 });
 
 export default SmartDeviceList;
+

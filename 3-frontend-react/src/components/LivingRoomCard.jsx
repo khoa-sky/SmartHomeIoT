@@ -112,13 +112,17 @@ const LivingRoomCard = memo(function LivingRoomCard({
           <span className="px-3 py-1.5 rounded-full text-[11px] font-semibold backdrop-blur-md bg-white/80 text-[#343E33] flex items-center gap-1.5 shadow-sm">
             <Thermometer className="w-3.5 h-3.5 text-[#394438]" aria-hidden="true" />
             <span className="tabular-nums">
-              {Number(telemetry.temp || 0).toFixed(1)}°C
+              {telemetry.temp !== null && telemetry.temp !== undefined && Number.isFinite(Number(telemetry.temp))
+                ? `${Number(telemetry.temp).toFixed(1)}°C`
+                : 'Chờ dữ liệu'}
             </span>
           </span>
           <span className="px-3 py-1.5 rounded-full text-[11px] font-semibold backdrop-blur-md bg-white/80 text-[#343E33] flex items-center gap-1.5 shadow-sm">
             <Droplets className="w-3.5 h-3.5 text-[#394438]" aria-hidden="true" />
             <span className="tabular-nums">
-              {Number(telemetry.hum || 0).toFixed(0)}%
+              {telemetry.hum !== null && telemetry.hum !== undefined && Number.isFinite(Number(telemetry.hum))
+                ? `${Number(telemetry.hum).toFixed(0)}%`
+                : 'Chờ dữ liệu'}
             </span>
           </span>
         </div>
@@ -174,3 +178,4 @@ const LivingRoomCard = memo(function LivingRoomCard({
 });
 
 export default LivingRoomCard;
+

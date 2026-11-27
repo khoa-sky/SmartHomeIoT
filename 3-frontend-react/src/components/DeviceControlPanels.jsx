@@ -554,7 +554,11 @@ export const GardenControlCard = memo(function GardenControlCard({
   const isPumpOn = Boolean(telemetry.pumpOn);
   const isPumpLocked = Boolean(telemetry.pumpLocked);
   const pumpCount = Number(telemetry.pumpCount) || 0;
-  const soilVal = Number(telemetry.soil) || 0;
+  const hasSoil =
+    telemetry.soil !== null &&
+    telemetry.soil !== undefined &&
+    Number.isFinite(Number(telemetry.soil));
+  const soilText = hasSoil ? `${Number(telemetry.soil)}%` : 'Chờ dữ liệu';
 
   return (
     <article className="aura-card aura-card-interactive p-5 flex flex-col justify-between space-y-4">
@@ -567,7 +571,7 @@ export const GardenControlCard = memo(function GardenControlCard({
             Máy bơm tưới tiêu
           </h3>
           <p style={{ color: 'var(--text-secondary)' }} className="text-[11px] mt-0.5">
-            Đất {soilVal}% • Chu kỳ {pumpCount}/5 đợt
+            Đất {soilText} • Chu kỳ {pumpCount}/5 đợt
           </p>
         </div>
 

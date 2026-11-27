@@ -117,22 +117,34 @@ const SensorOverviewGrid = memo(function SensorOverviewGrid({
   telemetry,
   history = []
 }) {
-  const tempVal = Number(telemetry.temp);
-  const humVal = Number(telemetry.hum);
-  const soilVal = Number(telemetry.soil);
+  const hasTemp =
+    telemetry.temp !== null &&
+    telemetry.temp !== undefined &&
+    Number.isFinite(Number(telemetry.temp));
+  const hasHum =
+    telemetry.hum !== null &&
+    telemetry.hum !== undefined &&
+    Number.isFinite(Number(telemetry.hum));
+  const hasSoil =
+    telemetry.soil !== null &&
+    telemetry.soil !== undefined &&
+    Number.isFinite(Number(telemetry.soil));
+  const tempVal = hasTemp ? Number(telemetry.temp) : NaN;
+  const humVal = hasHum ? Number(telemetry.hum) : NaN;
+  const soilVal = hasSoil ? Number(telemetry.soil) : NaN;
   const isFire = Boolean(telemetry.fireAlert);
   const isRaining = Boolean(telemetry.rain);
 
   const tempStatus =
-    !Number.isFinite(tempVal)
-      ? 'Đang chờ cảm biến DHT20'
+    !hasTemp
+      ? 'Chờ dữ liệu cảm biến DHT20'
       : tempVal > 33
       ? 'Khá ấm • Ngưỡng 24–32°C'
       : 'Thoải mái • Cảm biến DHT20';
 
   const humStatus =
-    !Number.isFinite(humVal)
-      ? 'Đang chờ cảm biến DHT20'
+    !hasHum
+      ? 'Chờ dữ liệu cảm biến DHT20'
       : humVal < 45
       ? 'Hơi khô • Ngưỡng 45–75%'
       : humVal <= 75
@@ -140,8 +152,8 @@ const SensorOverviewGrid = memo(function SensorOverviewGrid({
       : 'Độ ẩm cao • Ngưỡng 45–75%';
 
   const soilStatus =
-    !Number.isFinite(soilVal)
-      ? 'Đang chờ cảm biến LM393'
+    !hasSoil
+      ? 'Chờ dữ liệu cảm biến LM393'
       : soilVal < 30
       ? 'Đất khô — Tự động tưới (< 30%)'
       : soilVal < 40

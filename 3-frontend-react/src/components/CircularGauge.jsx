@@ -319,3 +319,4 @@ const CircularGauge = memo(function CircularGauge({
 });
 
 export default CircularGauge;
+
