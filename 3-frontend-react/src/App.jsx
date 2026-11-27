@@ -12,6 +12,7 @@ import ConnectionBadge from './components/ConnectionBadge';
 import SensorCards from './components/SensorCards';
 import {
   Sprout,
+  Droplets,
   Flame,
   Lightbulb,
   ShieldAlert,
