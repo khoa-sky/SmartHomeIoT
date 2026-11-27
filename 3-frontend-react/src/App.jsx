@@ -1,17 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import * as signalR from '@microsoft/signalr';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  SIGNALR_HUB_URL,
-  fetchDeviceStatus,
   sendDeviceCommand,
+  fetchDeviceStatus,
   fetchAnalyticsSummary,
   fetchSensorHistory,
   fetchEventLogs,
   getExportCsvUrl
 } from './services/apiClient';
+import { useSmartHomeHub } from './hooks/useSmartHomeHub';
+import ConnectionBadge from './components/ConnectionBadge';
+import SensorCards from './components/SensorCards';
 import {
-  Thermometer,
-  Droplets,
   Sprout,
   Flame,
   Lightbulb,
@@ -24,39 +23,19 @@ import {
   Bell,
   Lock,
   Unlock,
-  Wifi,
-  WifiOff,
   BarChart3,
   Sliders
 } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('control'); // 'control' | 'dashboard'
-  const [telemetry, setTelemetry] = useState({
-    temp: 32.2,
-    hum: 66,
-    soil: 38,
-    flame: 52,
-    fireAlert: false,
-    pir: false,
-    pirLocked: false,
-    rain: false,
-    servoAngle: 15,
-    servoMode: 'AUTO',
-    lightOn: false,
-    redLedOn: false,
-    pumpOn: false,
-    pumpLocked: false,
-    pumpCount: 0,
-    online: false
-  });
 
   const [summary, setSummary] = useState({
-    maxTemp: 33.1,
-    minTemp: 31.5,
-    avgTemp: 32.3,
-    avgHum: 66.5,
-    avgSoil: 39.0,
+    maxTemp: 0,
+    minTemp: 0,
+    avgTemp: 0,
+    avgHum: 0,
+    avgSoil: 0,
     totalPumpRuns: 0,
     estimatedWaterMl: 0,
     totalPirDetections: 0,
@@ -64,69 +43,47 @@ export default function App() {
     totalFireAlerts: 0
   });
 
-  const [history, setHistory] = useState([]);
   const [logs, setLogs] = useState([]);
   const [logFilter, setLogFilter] = useState('ALL');
   const [fireDismissed, setFireDismissed] = useState(false);
 
-  // Tải dữ liệu ban đầu và kết nối SignalR Real-time với Backend C#
+  // Nhật ký sự kiện mới từ SignalR -> thêm vào bảng và làm mới thống kê
+  const handleEventLog = useCallback((logItem) => {
+    setLogs((prev) => [logItem, ...prev.slice(0, 99)]);
+    fetchAnalyticsSummary().then(setSummary).catch(() => {});
+  }, []);
+
+  // Kết nối SignalR Real-time với Backend C# (sự kiện ReceiveTelemetry mỗi 1 giây)
+  const { telemetry, setTelemetry, history, setHistory, hubStatus } = useSmartHomeHub({
+    onEventLog: handleEventLog
+  });
+
+  // Hết cháy thì cho phép modal cảnh báo hiện lại ở lần cháy kế tiếp
+  useEffect(() => {
+    if (!telemetry.fireAlert) setFireDismissed(false);
+  }, [telemetry.fireAlert]);
+
   useEffect(() => {
     loadInitialData();
-
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl(SIGNALR_HUB_URL)
-      .withAutomaticReconnect()
-      .build();
-
-    connection.on('ReceiveTelemetry', (data) => {
-      setTelemetry(data);
-      if (!data.fireAlert) setFireDismissed(false);
-      setHistory((prev) => {
-        const next = [
-          ...prev,
-          {
-            timestamp: new Date().toISOString(),
-            temp: data.temp,
-            hum: data.hum,
-            soil: data.soil
-          }
-        ];
-        return next.slice(-25);
-      });
-    });
-
-    connection.on('NewEventLog', (logItem) => {
-      setLogs((prev) => [logItem, ...prev.slice(0, 99)]);
-      fetchAnalyticsSummary().then(setSummary).catch(() => {});
-    });
-
-    connection.start().catch((err) => console.warn('SignalR warning:', err));
-    return () => {
-      connection.stop();
-    };
   }, []);
 
   async function loadInitialData() {
-    try {
-      const [st, sum, hist, evLogs] = await Promise.all([
-        fetchDeviceStatus(),
-        fetchAnalyticsSummary(),
-        fetchSensorHistory(25),
-        fetchEventLogs('ALL', 100)
-      ]);
-      if (st) setTelemetry(st);
-      if (sum) setSummary(sum);
-      if (Array.isArray(hist)) setHistory(hist);
-      if (Array.isArray(evLogs)) setLogs(evLogs);
-    } catch (e) {
-      console.warn('Chưa kết nối được Backend C# tại cổng 5000:', e);
-    }
+    const [st, sum, hist, evLogs] = await Promise.allSettled([
+      fetchDeviceStatus(),
+      fetchAnalyticsSummary(),
+      fetchSensorHistory(25),
+      fetchEventLogs('ALL', 100)
+    ]);
+    if (st.status === 'fulfilled' && st.value) setTelemetry((prev) => ({ ...prev, ...st.value }));
+    if (sum.status === 'fulfilled' && sum.value) setSummary(sum.value);
+    if (hist.status === 'fulfilled' && Array.isArray(hist.value)) setHistory(hist.value);
+    if (evLogs.status === 'fulfilled' && Array.isArray(evLogs.value)) setLogs(evLogs.value);
   }
 
   async function handleCommand(cmd, value) {
     try {
       const res = await sendDeviceCommand(cmd, value);
-      if (res?.latestState) setTelemetry(res.latestState);
+      if (res?.latestState) setTelemetry((prev) => ({ ...prev, ...res.latestState }));
     } catch (e) {
       alert('Không thể gửi lệnh! Hãy kiểm tra Backend C# (cổng 5000) đã chạy chưa.');
     }
@@ -181,25 +138,11 @@ export default function App() {
 
           <div className="flex items-center gap-2">
             {/* HUY HIỆU TRẠNG THÁI MẠCH ESP32 */}
-            <div
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                telemetry.online
-                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
-                  : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
-              }`}
-            >
-              {telemetry.online ? (
-                <>
-                  <Wifi className="w-3.5 h-3.5" />
-                  <span>ESP32 ONLINE</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-3.5 h-3.5" />
-                  <span>CHỜ DỮ LIỆU MQTT</span>
-                </>
-              )}
-            </div>
+            <ConnectionBadge
+              hubStatus={hubStatus}
+              online={telemetry.online}
+              lastUpdated={telemetry.lastUpdated}
+            />
 
             {/* CHUYỂN TAB ĐIỀU KHIỂN / DASHBOARD */}
             <div className="bg-slate-800 p-1 rounded-xl flex gap-1">
@@ -234,91 +177,15 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 pt-6 space-y-6">
-        {/* CỤM 4 THẺ CẢM BIẾN THỜI GIAN THỰC */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* 1. Nhiệt độ */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-400">Nhiệt Độ Phòng (DHT20)</p>
-              <p className="text-3xl font-extrabold text-orange-400 mt-1">
-                {Number(telemetry.temp).toFixed(1)} °C
-              </p>
-              <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded bg-orange-500/15 text-orange-300">
-                {telemetry.temp > 33 ? 'Khá nóng' : 'Ổn định'}
-              </span>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/15 flex items-center justify-center">
-              <Thermometer className="w-7 h-7 text-orange-400" />
-            </div>
-          </div>
-
-          {/* 2. Độ ẩm không khí */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-400">Độ Ẩm Không Khí (DHT20)</p>
-              <p className="text-3xl font-extrabold text-sky-400 mt-1">
-                {Number(telemetry.hum).toFixed(0)} %
-              </p>
-              <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded bg-sky-500/15 text-sky-300">
-                Độ ẩm phòng
-              </span>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-sky-500/15 flex items-center justify-center">
-              <Droplets className="w-7 h-7 text-sky-400" />
-            </div>
-          </div>
-
-          {/* 3. Độ ẩm đất */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-            <div className="w-full pr-3">
-              <p className="text-xs text-slate-400">Độ Ẩm Đất Vườn (IO35)</p>
-              <p className="text-3xl font-extrabold text-emerald-400 mt-1">
-                {telemetry.soil} %
-              </p>
-              <div className="w-full bg-slate-800 h-2 rounded-full mt-2 overflow-hidden">
-                <div
-                  className={`h-full transition-all ${
-                    telemetry.soil < 30 ? 'bg-amber-500' : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${Math.min(100, Math.max(0, telemetry.soil))}%` }}
-                />
-              </div>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-              <Sprout className="w-7 h-7 text-emerald-400" />
-            </div>
-          </div>
-
-          {/* 4. An toàn Lửa & Thời tiết */}
-          <div
-            className={`border rounded-2xl p-4 flex items-center justify-between ${
-              telemetry.fireAlert
-                ? 'bg-red-950/60 border-red-500'
-                : 'bg-slate-900 border-slate-800'
-            }`}
-          >
-            <div>
-              <p className="text-xs text-slate-400">Cảm Biến Lửa (IO34) &amp; Mưa</p>
-              <p
-                className={`text-xl font-extrabold mt-1 ${
-                  telemetry.fireAlert ? 'text-red-400' : 'text-emerald-400'
-                }`}
-              >
-                {telemetry.fireAlert ? 'BÁO CHÁY!' : `An Toàn (ADC: ${telemetry.flame})`}
-              </p>
-              <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                Thời tiết: {telemetry.rain ? '🌧️ ĐANG MƯA' : '☀️ KHÔ RÁO'}
-              </span>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-red-500/15 flex items-center justify-center">
-              <Flame
-                className={`w-7 h-7 ${
-                  telemetry.fireAlert ? 'text-red-400 animate-bounce' : 'text-slate-400'
-                }`}
-              />
-            </div>
-          </div>
-        </section>
+        {/* CỤM 4 THẺ CẢM BIẾN THỜI GIAN THỰC (SignalR ReceiveTelemetry) */}
+        <SensorCards
+          temp={telemetry.temp}
+          hum={telemetry.hum}
+          soil={telemetry.soil}
+          flame={telemetry.flame}
+          fireAlert={telemetry.fireAlert}
+          rain={telemetry.rain}
+        />
 
         {/* PHÂN HỆ 1: TAB ĐIỀU KHIỂN TỪ XA */}
         {activeTab === 'control' && (
