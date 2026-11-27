@@ -3,7 +3,25 @@
 // Đồng bộ 100% hợp đồng API với 3-frontend-react/src/services/apiClient.js
 // =========================================================================
 
-export const DEFAULT_SERVER_IP = '192.168.1.31';
+import { NativeModules } from 'react-native';
+
+// Tự động phát hiện địa chỉ IP Wi-Fi LAN của máy tính đang chạy Expo Metro Bundler
+function detectExpoHostIp() {
+  try {
+    const scriptURL = NativeModules?.SourceCode?.scriptURL;
+    if (typeof scriptURL === 'string') {
+      const match = scriptURL.match(/^https?:\/\/([^:/]+)(?::\d+)?\//i);
+      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+        return match[1];
+      }
+    }
+  } catch {
+    // Fallback
+  }
+  return '192.168.1.119';
+}
+
+export const DEFAULT_SERVER_IP = detectExpoHostIp();
 export const DEFAULT_SERVER_PORT = '5000';
 const REQUEST_TIMEOUT_MS = 5000;
 

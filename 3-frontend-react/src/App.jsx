@@ -108,7 +108,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hubStatus, setHubStatus] = useState('connecting');
 
-  const [lanIp, setLanIp] = useState('192.168.1.31');
+  const [lanIp, setLanIp] = useState('192.168.1.119');
   const [connMeta, setConnMeta] = useState({
     brokerConnected: false,
     brokerHost: 'broker.emqx.io',
@@ -178,8 +178,10 @@ export default function App() {
     loadInitialData();
 
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(SIGNALR_HUB_URL)
-      .withAutomaticReconnect([0, 2000, 5000, 10000])
+      .withUrl(SIGNALR_HUB_URL, {
+        withCredentials: false
+      })
+      .withAutomaticReconnect([0, 1500, 3000, 5000])
       .build();
 
     connection.on('ReceiveTelemetry', (data) => {
@@ -237,6 +239,10 @@ export default function App() {
       });
     });
 
+    connection.on('ReceiveSummary', (sum) => {
+      if (!disposed && sum) setSummary(sum);
+    });
+
     connection.on('NewEventLog', (logItem) => {
       if (disposed || !logItem) return;
       setLogs((prevLogs) => [logItem, ...prevLogs.slice(0, 149)]);
@@ -255,7 +261,7 @@ export default function App() {
     connection.onclose(() => {
       if (!disposed) {
         setHubStatus('disconnected');
-        retryTimer = setTimeout(startHub, 5000);
+        retryTimer = setTimeout(startHub, 3500);
       }
     });
 
@@ -265,20 +271,73 @@ export default function App() {
       startPromise = connection
         .start()
         .then(() => {
-          if (!disposed) setHubStatus('connected');
+          if (!disposed) {
+            setHubStatus('connected');
+            loadInitialData();
+          }
         })
         .catch(() => {
           if (!disposed) {
             setHubStatus('disconnected');
-            retryTimer = setTimeout(startHub, 5000);
+            retryTimer = setTimeout(startHub, 3500);
           }
         });
     }
 
     startHub();
 
+    // Đồng bộ dự phòng mỗi 1.8 giây để giao diện luôn tự cập nhật số liệu mới từ MQTTX mà không bao giờ cần bấm F5
+    const livePollTimer = setInterval(async () => {
+      if (disposed) return;
+      try {
+        const latest = await fetchDeviceStatus();
+        if (disposed || !latest) return;
+        const prev = prevTelemetryRef.current;
+        const hasNewTimestamp =
+          latest.lastUpdated && (!prev || prev.lastUpdated !== latest.lastUpdated);
+        const hasValueDiff =
+          !prev ||
+          prev.temp !== latest.temp ||
+          prev.hum !== latest.hum ||
+          prev.soil !== latest.soil ||
+          prev.flame !== latest.flame ||
+          prev.fireAlert !== latest.fireAlert ||
+          prev.rain !== latest.rain ||
+          prev.pir !== latest.pir ||
+          prev.pirLocked !== latest.pirLocked ||
+          prev.lightOn !== latest.lightOn ||
+          prev.servoAngle !== latest.servoAngle ||
+          prev.servoMode !== latest.servoMode ||
+          prev.pumpOn !== latest.pumpOn ||
+          prev.pumpLocked !== latest.pumpLocked ||
+          prev.online !== latest.online;
+
+        if (hasNewTimestamp || hasValueDiff) {
+          prevTelemetryRef.current = latest;
+          setTelemetry(latest);
+          if (hasValueDiff) {
+            setHistory((prevHist) =>
+              [
+                ...prevHist,
+                {
+                  id: Date.now(),
+                  timestamp: latest.lastUpdated || new Date().toISOString(),
+                  temp: latest.temp,
+                  hum: latest.hum,
+                  soil: latest.soil
+                }
+              ].slice(-30)
+            );
+          }
+        }
+      } catch {
+        // Server C# chưa phản hồi
+      }
+    }, 1800);
+
     return () => {
       disposed = true;
+      clearInterval(livePollTimer);
       if (retryTimer) clearTimeout(retryTimer);
       startPromise.finally(() => connection.stop());
     };

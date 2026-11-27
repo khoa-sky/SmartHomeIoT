@@ -210,12 +210,21 @@ public class MqttWorkerService : BackgroundService
             data.Online = true;
             data.LastUpdated = DateTime.Now;
 
+            bool valueChanged = _prevState == null
+                || Math.Abs(_prevState.Temp - data.Temp) >= 0.1
+                || Math.Abs(_prevState.Hum - data.Hum) >= 1.0
+                || _prevState.Soil != data.Soil
+                || _prevState.Flame != data.Flame
+                || _prevState.FireAlert != data.FireAlert
+                || _prevState.Rain != data.Rain
+                || _prevState.PumpOn != data.PumpOn;
+
             await DetectAndLogEventsAsync(_prevState, data);
             _prevState = data;
             _repo.LatestTelemetry = data;
 
-            // Luu mau bieu do moi 5 giay
-            if ((DateTime.Now - _lastDbSample).TotalSeconds >= 5)
+            // Luu mau bieu do ngay khi thong so thay doi hoac dinh ky moi 5 giay
+            if (valueChanged || (DateTime.Now - _lastDbSample).TotalSeconds >= 5)
             {
                 _lastDbSample = DateTime.Now;
                 _repo.AddReading(data);
@@ -223,6 +232,7 @@ public class MqttWorkerService : BackgroundService
 
             // Day ngay lap tuc len React Web & Mobile qua SignalR
             await _hub.Clients.All.SendAsync("ReceiveTelemetry", data);
+            await _hub.Clients.All.SendAsync("ReceiveSummary", _repo.GetSummary());
         }
         catch (Exception ex)
         {

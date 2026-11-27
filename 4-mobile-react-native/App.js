@@ -120,6 +120,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [serverIp, setServerIp] = useState(DEFAULT_SERVER_IP);
   const [activeIp, setActiveIp] = useState(DEFAULT_SERVER_IP);
+  const [reconnectTick, setReconnectTick] = useState(0);
   const [ipEditorOpen, setIpEditorOpen] = useState(false);
   const [hubConnected, setHubConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -199,6 +200,7 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer = null;
 
     async function connectToBackend(ip) {
       setConnecting(true);
@@ -212,9 +214,11 @@ export default function App() {
         if (cancelled) return;
 
         const connection = new signalR.HubConnectionBuilder()
-          .withUrl(buildSignalRUrl(ip))
-          .withAutomaticReconnect([0, 2000, 5000, 10000])
-          .configureLogging(signalR.LogLevel.Warning)
+          .withUrl(buildSignalRUrl(ip), {
+            withCredentials: false
+          })
+          .withAutomaticReconnect([0, 1500, 3000, 5000])
+          .configureLogging(signalR.LogLevel.None)
           .build();
 
         connection.on('ReceiveTelemetry', (data) => {
@@ -280,6 +284,10 @@ export default function App() {
           });
         });
 
+        connection.on('ReceiveSummary', (sum) => {
+          if (!cancelled && sum) setSummary(sum);
+        });
+
         connection.on('NewEventLog', (logItem) => {
           if (cancelled || !logItem) return;
           setLogs((prevLogs) => [logItem, ...prevLogs.slice(0, 119)]);
@@ -302,7 +310,12 @@ export default function App() {
         });
 
         connection.onclose(() => {
-          if (!cancelled) setHubConnected(false);
+          if (!cancelled) {
+            setHubConnected(false);
+            retryTimer = setTimeout(() => {
+              if (!cancelled) setReconnectTick((t) => t + 1);
+            }, 3500);
+          }
         });
 
         await connection.start();
@@ -323,7 +336,9 @@ export default function App() {
       } catch {
         if (!cancelled) {
           setHubConnected(false);
-          setIpEditorOpen(true);
+          retryTimer = setTimeout(() => {
+            if (!cancelled) setReconnectTick((t) => t + 1);
+          }, 4000);
         }
       } finally {
         if (!cancelled) setConnecting(false);
@@ -334,12 +349,74 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
       if (connectionRef.current) {
         connectionRef.current.stop().catch(() => {});
         connectionRef.current = null;
       }
     };
-  }, [activeIp, loadSnapshotData, showToast]);
+  }, [activeIp, reconnectTick, loadSnapshotData, showToast]);
+
+  // Đồng bộ thời gian thực dự phòng mỗi 1.8 giây (đảm bảo trên Expo Go luôn nhảy số tức thì kể cả khi WebSocket bị nghẽn)
+  useEffect(() => {
+    let active = true;
+    const pollTimer = setInterval(async () => {
+      try {
+        const latest = await fetchMobileDeviceStatus(activeIp);
+        if (!active || !latest) return;
+
+        const prev = prevTelemetryRef.current;
+        const hasNewTimestamp =
+          latest.lastUpdated && (!prev || prev.lastUpdated !== latest.lastUpdated);
+        const hasValueDiff =
+          !prev ||
+          prev.temp !== latest.temp ||
+          prev.hum !== latest.hum ||
+          prev.soil !== latest.soil ||
+          prev.flame !== latest.flame ||
+          prev.fireAlert !== latest.fireAlert ||
+          prev.rain !== latest.rain ||
+          prev.pir !== latest.pir ||
+          prev.pirLocked !== latest.pirLocked ||
+          prev.lightOn !== latest.lightOn ||
+          prev.servoAngle !== latest.servoAngle ||
+          prev.servoMode !== latest.servoMode ||
+          prev.pumpOn !== latest.pumpOn ||
+          prev.pumpLocked !== latest.pumpLocked ||
+          prev.online !== latest.online;
+
+        if (hasNewTimestamp || hasValueDiff) {
+          prevTelemetryRef.current = latest;
+          setTelemetry(latest);
+          if (latest.online) {
+            lastPacketAtRef.current = Date.now();
+            setSecondsAgo(0);
+          }
+          if (hasValueDiff) {
+            setHistory((prevHist) =>
+              [
+                ...prevHist,
+                {
+                  id: Date.now(),
+                  timestamp: latest.lastUpdated || new Date().toISOString(),
+                  temp: latest.temp,
+                  hum: latest.hum,
+                  soil: latest.soil
+                }
+              ].slice(-30)
+            );
+          }
+        }
+      } catch {
+        // Server C# tạm thời chưa phản hồi
+      }
+    }, 1800);
+
+    return () => {
+      active = false;
+      clearInterval(pollTimer);
+    };
+  }, [activeIp]);
 
   // Đồng hồ đếm thời gian cập nhật & kiểm tra timeout 6 giây mất kết nối ESP32
   useEffect(() => {
@@ -386,20 +463,11 @@ export default function App() {
     const normalized = normalizeServerInput(serverIp);
     setServerIp(normalized);
     if (normalized === activeIp) {
-      loadSnapshotData(normalized).then((ok) => {
-        if (ok) {
-          showToast(`Đã làm mới kết nối tới ${normalized}`, 'success');
-        } else {
-          showToast(
-            `Không phản hồi từ ${normalized}. Kiểm tra Server C# cổng 5000.`,
-            'danger'
-          );
-        }
-      });
+      setReconnectTick((t) => t + 1);
     } else {
       setActiveIp(normalized);
     }
-  }, [serverIp, activeIp, loadSnapshotData, showToast]);
+  }, [serverIp, activeIp]);
 
   const handleSelectPresetIp = useCallback((ip) => {
     setServerIp(ip);
